@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS-SHAFT 游戏</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+</head>
+
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <div class="score">深度: <span id="depth">0</span>m</div>
+            <div class="lives">生命: <span id="lives">5</span></div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="game-controls">
+            <button id="startButton">开始游戏</button>
+            <button id="restartButton" style="display: none;">重新开始</button>
+        </div>
+        <div class="game-over" id="gameOver" style="display: none;">
+            <h2>游戏结束</h2>
+            <p>你的最终深度: <span id="finalDepth">0</span>m</p>
+            <button id="tryAgainButton">再试一次</button>
+        </div>
+        <div class="mobile-controls">
+            <button id="leftButton">←</button>
+            <button id="rightButton">→</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+
+</html>
