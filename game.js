@@ -10,6 +10,7 @@ const restartButton = document.getElementById('restartButton');
 const tryAgainButton = document.getElementById('tryAgainButton');
 const leftButton = document.getElementById('leftButton');
 const rightButton = document.getElementById('rightButton');
+const downButton = document.getElementById('downButton');
 
 // 设置canvas尺寸
 canvas.width = canvas.clientWidth;
@@ -17,19 +18,21 @@ canvas.height = canvas.clientHeight;
 
 // 游戏常量
 const GRAVITY = 0.25;
-const JUMP_POWER = -8;
+const JUMP_POWER = 8;
 const PLATFORM_WIDTH = 80;
 const PLATFORM_HEIGHT = 15;
 const PLAYER_WIDTH = 30;
 const PLAYER_HEIGHT = 40;
 const PLATFORM_SPEED = 2;
-const PLATFORM_GAP = 100;
-const MAX_PLATFORMS = 8;
+const PLATFORM_GAP = 150; // 增加平台间距
+const MAX_PLATFORMS = 5; // 减少最大平台数量
+const SCREEN_SCROLL_SPEED = 0.5; // 屏幕匀速下滚的速度
 const PLATFORM_TYPES = {
     NORMAL: 0,
     MOVING: 1,
     BREAKING: 2,
-    SPIKE: 3
+    SPIKE: 3,
+    SPRING: 4  // 新增弹簧平台类型
 };
 
 // 游戏状态
@@ -44,16 +47,18 @@ let player = {
     isJumping: false,
     isOnPlatform: false,
     currentPlatform: null,
-    color: '#00BFFF'
+    color: '#00BFFF',
+    onSpring: false  // 新增是否在弹簧平台上的状态
 };
 
 let platforms = [];
 let depth = 0;
-let lives = 5;
+let lives = 100;  // 修改生命值为100
 let keys = {};
 let cameraPosY = 0;
 let spawnDepth = 0;
 let difficulty = 1;
+let ceilingSpikes = []; // 存储屏幕顶部的刺
 
 // 初始化游戏
 function initGame() {
@@ -68,21 +73,41 @@ function initGame() {
         isJumping: false,
         isOnPlatform: false,
         currentPlatform: null,
-        color: '#00BFFF'
+        color: '#00BFFF',
+        onSpring: false
     };
 
     platforms = [];
     depth = 0;
-    lives = 5;
+    lives = 100;  // 修改生命值为100
     cameraPosY = 0;
     spawnDepth = 0;
     difficulty = 1;
+    ceilingSpikes = []; // 初始化天花板刺
+
+    // 创建天花板刺
+    createCeilingSpikes();
 
     // 更新UI
     updateUI();
 
     // 创建初始平台
     createInitialPlatforms();
+}
+
+// 创建天花板刺
+function createCeilingSpikes() {
+    const spikeWidth = 20;
+    const spikeHeight = 15;
+    const numberOfSpikes = Math.floor(canvas.width / spikeWidth);
+
+    for (let i = 0; i < numberOfSpikes; i++) {
+        ceilingSpikes.push({
+            x: i * spikeWidth,
+            width: spikeWidth,
+            height: spikeHeight
+        });
+    }
 }
 
 // 创建初始平台
@@ -114,39 +139,55 @@ function createPlatform(y) {
     let type = PLATFORM_TYPES.NORMAL;
     let color = '#8BC34A';
 
-    // 根据深度增加难度
+    // 根据深度增加难度和特殊平台概率
     if (depth > 500) {
+        const rand = Math.random();
+        if (rand < 0.15 * difficulty) { // 增加尖刺平台概率
+            type = PLATFORM_TYPES.SPIKE;
+            color = '#F44336';
+        } else if (rand < 0.35 * difficulty) { // 增加破碎平台概率
+            type = PLATFORM_TYPES.BREAKING;
+            color = '#FFC107';
+        } else if (rand < 0.55 * difficulty) { // 增加移动平台概率
+            type = PLATFORM_TYPES.MOVING;
+            color = '#9C27B0';
+        } else if (rand < 0.7 * difficulty) { // 增加弹簧平台概率
+            type = PLATFORM_TYPES.SPRING;
+            color = '#2196F3';
+        }
+    } else if (depth > 200) {
         const rand = Math.random();
         if (rand < 0.1 * difficulty) {
             type = PLATFORM_TYPES.SPIKE;
             color = '#F44336';
-        } else if (rand < 0.3 * difficulty) {
+        } else if (rand < 0.25 * difficulty) {
             type = PLATFORM_TYPES.BREAKING;
             color = '#FFC107';
-        } else if (rand < 0.5 * difficulty) {
+        } else if (rand < 0.4 * difficulty) {
             type = PLATFORM_TYPES.MOVING;
             color = '#9C27B0';
+        } else if (rand < 0.5 * difficulty) {
+            type = PLATFORM_TYPES.SPRING;
+            color = '#2196F3';
         }
-    } else if (depth > 200) {
+    } else if (depth > 100) {
         const rand = Math.random();
         if (rand < 0.05 * difficulty) {
             type = PLATFORM_TYPES.SPIKE;
             color = '#F44336';
-        } else if (rand < 0.15 * difficulty) {
+        } else if (rand < 0.2 * difficulty) {
             type = PLATFORM_TYPES.BREAKING;
             color = '#FFC107';
-        } else if (rand < 0.3 * difficulty) {
+        } else if (rand < 0.35 * difficulty) {
             type = PLATFORM_TYPES.MOVING;
             color = '#9C27B0';
-        }
-    } else if (depth > 100) {
-        const rand = Math.random();
-        if (rand < 0.2 * difficulty) {
-            type = PLATFORM_TYPES.MOVING;
-            color = '#9C27B0';
+        } else if (rand < 0.45 * difficulty) {
+            type = PLATFORM_TYPES.SPRING;
+            color = '#2196F3';
         }
     }
 
+    // 确保每个屏幕高度有足够的平台
     platforms.push({
         x,
         y,
@@ -156,7 +197,8 @@ function createPlatform(y) {
         color,
         breaking: false,
         direction: Math.random() > 0.5 ? 1 : -1,
-        speed: Math.random() * 2 + 1
+        speed: Math.random() * 2 + 1,
+        breakTime: type === PLATFORM_TYPES.BREAKING ? 60 : 0  // 设置破碎时间为2秒（60帧）
     });
 }
 
@@ -197,16 +239,22 @@ function updateGame() {
     // 检测碰撞
     checkCollisions();
 
+    // 检测与天花板刺的碰撞
+    checkCeilingSpikeCollision();
+
     // 移除屏幕外的平台并创建新平台
     managePlatforms();
 
     // 更新深度
-    if (player.y > depth) {
-        depth = player.y;
+    depth += SCREEN_SCROLL_SPEED;
+
+    // 确保玩家不掉出屏幕底部
+    if (player.y > depth + canvas.height) {
+        endGame();
     }
 
-    // 更新难度
-    difficulty = 1 + depth / 1000;
+    // 更新难度 - 增加难度系数
+    difficulty = 1 + depth / 500; // 从1000改为500，使难度增长更快
 
     // 更新UI
     updateUI();
@@ -244,6 +292,16 @@ function movePlayer() {
         player.x = canvas.width - player.width;
     }
 
+    // 如果玩家在平台上，检查是否走到了边缘
+    if (player.isOnPlatform && player.currentPlatform) {
+        // 如果玩家走出了平台左边缘或右边缘，就掉落
+        if (player.x + player.width <= player.currentPlatform.x ||
+            player.x >= player.currentPlatform.x + player.currentPlatform.width) {
+            player.isOnPlatform = false;
+            player.currentPlatform = null;
+        }
+    }
+
     // 如果玩家在平台上，跟随平台移动
     if (player.isOnPlatform && player.currentPlatform.type === PLATFORM_TYPES.MOVING) {
         player.x += player.currentPlatform.direction * player.currentPlatform.speed;
@@ -254,6 +312,19 @@ function movePlayer() {
         } else if (player.x > canvas.width - player.width) {
             player.x = canvas.width - player.width;
         }
+    }
+}
+
+// 检测与天花板刺的碰撞
+function checkCeilingSpikeCollision() {
+    const ceilingY = 0;  // 天花板位置固定在屏幕顶部
+
+    // 如果玩家碰到天花板刺
+    if (player.y <= 15) {
+        loseLife(1);  // 减少1点生命值
+
+        // 将玩家向下推
+        player.velocityY = Math.max(player.velocityY, 2);
     }
 }
 
@@ -273,7 +344,6 @@ function updatePlatforms() {
         // 如果是破碎平台并且玩家站在上面，开始破碎倒计时
         if (platform.type === PLATFORM_TYPES.BREAKING && player.isOnPlatform && player.currentPlatform === platform && !platform.breaking) {
             platform.breaking = true;
-            platform.breakTime = 30; // 破碎倒计时帧数
         }
 
         // 更新破碎平台倒计时
@@ -299,10 +369,12 @@ function updatePlatforms() {
 function checkCollisions() {
     // 之前是否在平台上
     const wasOnPlatform = player.isOnPlatform;
+    const wasOnSpring = player.onSpring;
 
     // 重置平台状态
     player.isOnPlatform = false;
     player.currentPlatform = null;
+    player.onSpring = false;
 
     // 只有当玩家在下落时检测碰撞
     if (player.velocityY > 0) {
@@ -316,16 +388,26 @@ function checkCollisions() {
             ) {
                 if (platform.type === PLATFORM_TYPES.SPIKE) {
                     // 玩家碰到尖刺平台，减少生命
-                    loseLife();
+                    loseLife(1);
+
+                    // 设置玩家位置，但是允许继续下落
+                    player.velocityY = Math.max(player.velocityY, 2); // 给一个向下的冲力
                 } else {
-                    // 玩家站在普通平台上
+                    // 玩家站在平台上
                     player.isOnPlatform = true;
                     player.currentPlatform = platform;
                     player.y = platform.y - player.height;
+                    player.velocityY = 0;
 
-                    // 如果是第一次站上这个平台，给予跳跃力
-                    if (!wasOnPlatform) {
-                        player.velocityY = JUMP_POWER;
+                    // 如果是弹簧平台
+                    if (platform.type === PLATFORM_TYPES.SPRING) {
+                        player.onSpring = true;
+                        if (!wasOnSpring) {
+                            // 第一次接触弹簧，给一个向上的弹跳（在新的坐标系统中是负数）
+                            player.velocityY = -JUMP_POWER * 1.5;
+                            player.isOnPlatform = false;
+                            player.currentPlatform = null;
+                        }
                     }
                 }
             }
@@ -335,35 +417,69 @@ function checkCollisions() {
 
 // 管理平台（移除屏幕外的并创建新的）
 function managePlatforms() {
-    // 计算相对于相机的y坐标
-    const cameraY = player.y - canvas.height / 3;
-    cameraPosY = Math.max(cameraPosY, cameraY);
+    // 移除屏幕顶部的平台
+    platforms = platforms.filter(platform => platform.y > depth - 100);
 
-    // 移除屏幕上方的平台
-    platforms = platforms.filter(platform => platform.y > cameraPosY - 100);
-
-    // 在屏幕下方创建新平台
-    if (spawnDepth < cameraPosY + canvas.height) {
-        createPlatform(spawnDepth + PLATFORM_GAP);
-        spawnDepth += PLATFORM_GAP;
+    // 在屏幕底部创建新平台
+    if (spawnDepth < depth + canvas.height) {
+        // 增加平台间隔，减少屏幕内平台数量
+        const newGap = Math.max(PLATFORM_GAP * (1 + Math.random() * 0.5), 120); // 随机增加间距
+        createPlatform(spawnDepth + newGap);
+        spawnDepth += newGap;
     }
 
     // 保持平台数量适中
-    while (platforms.length < MAX_PLATFORMS) {
+    while (platforms.length < MAX_PLATFORMS) { // 减少平台数量
+        const newGap = Math.max(PLATFORM_GAP * (1 + Math.random() * 0.5), 120); // 随机增加间距
         createPlatform(spawnDepth);
-        spawnDepth += PLATFORM_GAP;
+        spawnDepth += newGap;
+    }
+
+    // 检查是否有足够的平台，如果不够则生成更多
+    ensureEnoughPlatforms();
+}
+
+// 确保屏幕中有足够的平台
+function ensureEnoughPlatforms() {
+    // 计算屏幕底部的Y坐标
+    const bottomY = depth + canvas.height;
+
+    // 检查屏幕底部附近是否有平台
+    let hasBottomPlatform = false;
+    for (let platform of platforms) {
+        if (platform.y > bottomY - 150 && platform.y < bottomY) {
+            hasBottomPlatform = true;
+            break;
+        }
+    }
+
+    // 如果屏幕底部没有平台，创建一个
+    if (!hasBottomPlatform) {
+        createPlatform(bottomY - 50);
+    }
+
+    // 检查屏幕内是否有任何平台
+    let hasPlatformInView = false;
+    for (let platform of platforms) {
+        if (platform.y > depth && platform.y < bottomY) {
+            hasPlatformInView = true;
+            break;
+        }
+    }
+
+    // 只有当屏幕中完全没有平台时才创建一个紧急平台
+    if (!hasPlatformInView) {
+        const middleY = depth + canvas.height / 2;
+        createPlatform(middleY);
     }
 }
 
 // 减少生命
-function loseLife() {
-    lives--;
+function loseLife(amount) {
+    lives -= amount;
     if (lives > 0) {
-        // 玩家受伤，短暂无敌并弹跳
-        player.velocityY = JUMP_POWER * 1.2;
-        player.isOnPlatform = false;
-        player.currentPlatform = null;
-        player.color = '#FF6B6B'; // 受伤变红
+        // 玩家受伤，短暂变红
+        player.color = '#FF6B6B';
 
         // 短暂变红后恢复
         setTimeout(() => {
@@ -374,8 +490,8 @@ function loseLife() {
 
 // 检查游戏是否结束
 function checkGameOver() {
-    // 如果玩家掉出屏幕顶部或生命耗尽
-    if (player.y < cameraPosY - 100 || lives <= 0) {
+    // 如果玩家生命值耗尽或掉出屏幕底部
+    if (lives <= 0 || player.y > depth + canvas.height) {
         endGame();
     }
 }
@@ -391,12 +507,13 @@ function endGame() {
 
 // 绘制游戏
 function drawGame() {
-    // 计算相对于相机的y坐标
-    const cameraY = player.y - canvas.height / 3;
-    cameraPosY = Math.max(cameraPosY, cameraY);
+    // 不再需要根据玩家位置计算相机位置，相机直接跟随屏幕滚动
 
     // 绘制背景
     drawBackground();
+
+    // 绘制天花板刺
+    drawCeilingSpikes();
 
     // 绘制平台
     drawPlatforms();
@@ -412,8 +529,8 @@ function drawBackground() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // 每100米绘制深度标记
-    for (let d = Math.floor(cameraPosY / 100) * 100; d <= cameraPosY + canvas.height; d += 100) {
-        const y = canvas.height - (d - cameraPosY);
+    for (let d = Math.floor(depth / 100) * 100; d <= depth + canvas.height; d += 100) {
+        const y = d - depth;  // 相对于当前深度的位置
         ctx.fillStyle = '#333';
         ctx.fillRect(0, y, canvas.width, 1);
 
@@ -423,11 +540,25 @@ function drawBackground() {
     }
 }
 
+// 绘制天花板刺
+function drawCeilingSpikes() {
+    const y = 0; // 天花板位置固定在顶部
+
+    ctx.fillStyle = '#F44336';
+    for (let spike of ceilingSpikes) {
+        ctx.beginPath();
+        ctx.moveTo(spike.x, y);
+        ctx.lineTo(spike.x + spike.width / 2, y + spike.height);
+        ctx.lineTo(spike.x + spike.width, y);
+        ctx.fill();
+    }
+}
+
 // 绘制平台
 function drawPlatforms() {
     for (let platform of platforms) {
-        // 计算相对于相机的y坐标
-        const y = canvas.height - (platform.y - cameraPosY);
+        // 计算相对于当前深度的y坐标
+        const y = platform.y - depth;
 
         // 如果平台在视野内才绘制
         if (y >= -platform.height && y <= canvas.height) {
@@ -439,17 +570,31 @@ function drawPlatforms() {
                 ctx.fillStyle = '#FF6B6B';
             }
 
-            ctx.fillRect(platform.x, y - platform.height, platform.width, platform.height);
+            ctx.fillRect(platform.x, y, platform.width, platform.height);
 
             // 如果是尖刺平台，绘制尖刺
             if (platform.type === PLATFORM_TYPES.SPIKE) {
                 ctx.fillStyle = '#F44336';
                 for (let i = 0; i < platform.width - 10; i += 10) {
                     ctx.beginPath();
-                    ctx.moveTo(platform.x + i + 5, y - platform.height - 10);
-                    ctx.lineTo(platform.x + i + 10, y - platform.height);
-                    ctx.lineTo(platform.x + i, y - platform.height);
+                    ctx.moveTo(platform.x + i + 5, y - 10); // 修改：尖刺顶点在平台上方10像素
+                    ctx.lineTo(platform.x + i + 10, y); // 修改：尖刺右边点在平台表面
+                    ctx.lineTo(platform.x + i, y); // 修改：尖刺左边点在平台表面
                     ctx.fill();
+                }
+            }
+
+            // 如果是弹簧平台，绘制弹簧
+            if (platform.type === PLATFORM_TYPES.SPRING) {
+                ctx.fillStyle = '#2196F3';
+                // 绘制弹簧的弹性部分
+                for (let i = 0; i < 3; i++) {
+                    ctx.fillRect(
+                        platform.x + platform.width / 4,
+                        y + platform.height + i * 3,
+                        platform.width / 2,
+                        2
+                    );
                 }
             }
         }
@@ -458,27 +603,27 @@ function drawPlatforms() {
 
 // 绘制玩家
 function drawPlayer() {
-    // 计算相对于相机的y坐标
-    const y = canvas.height - (player.y - cameraPosY);
+    // 计算相对于当前深度的y坐标
+    const y = player.y - depth;
 
     // 绘制玩家
     ctx.fillStyle = player.color;
-    ctx.fillRect(player.x, y - player.height, player.width, player.height);
+    ctx.fillRect(player.x, y, player.width, player.height);
 
-    // 绘制眼睛和微笑
+    // 绘制眼睛和表情
     ctx.fillStyle = '#000';
-    ctx.fillRect(player.x + 5, y - player.height + 8, 5, 5);
-    ctx.fillRect(player.x + player.width - 10, y - player.height + 8, 5, 5);
+    ctx.fillRect(player.x + 5, y + 8, 5, 5);
+    ctx.fillRect(player.x + player.width - 10, y + 8, 5, 5);
 
     if (player.velocityY > 0) {
         // 下落表情
         ctx.beginPath();
-        ctx.arc(player.x + player.width / 2, y - player.height + 25, 5, 0, Math.PI, false);
+        ctx.arc(player.x + player.width / 2, y + 25, 5, 0, Math.PI, false);
         ctx.stroke();
     } else {
         // 上升表情
         ctx.beginPath();
-        ctx.arc(player.x + player.width / 2, y - player.height + 20, 5, 0, Math.PI, true);
+        ctx.arc(player.x + player.width / 2, y + 20, 5, 0, Math.PI, true);
         ctx.stroke();
     }
 }
@@ -515,6 +660,13 @@ tryAgainButton.addEventListener('click', restartGame);
 // 键盘控制
 window.addEventListener('keydown', (e) => {
     keys[e.key] = true;
+
+    // 保留向上跳的功能，但改变跳跃方向
+    if (e.key === ' ' && player.isOnPlatform) {
+        player.isOnPlatform = false;
+        player.currentPlatform = null;
+        player.velocityY = -JUMP_POWER; // 向上跳，改为负值
+    }
 });
 
 window.addEventListener('keyup', (e) => {
@@ -534,6 +686,16 @@ leftButton.addEventListener('mouseleave', () => { keys.ArrowLeft = false; });
 rightButton.addEventListener('mousedown', () => { keys.ArrowRight = true; });
 rightButton.addEventListener('mouseup', () => { keys.ArrowRight = false; });
 rightButton.addEventListener('mouseleave', () => { keys.ArrowRight = false; });
+
+// 移除向下跳跃按钮的逻辑
+if (downButton) {
+    downButton.addEventListener('touchstart', () => {
+        // 向下跳功能已移除
+    });
+    downButton.addEventListener('mousedown', () => {
+        // 向下跳功能已移除
+    });
+}
 
 // 窗口大小调整
 window.addEventListener('resize', () => {

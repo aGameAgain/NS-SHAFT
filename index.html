@@ -10,28 +10,97 @@
 </head>
 
 <body>
-    <div class="game-container">
-        <div class="game-header">
-            <div class="score">深度: <span id="depth">0</span>m</div>
-            <div class="lives">生命: <span id="lives">5</span></div>
+    <div class="game-wrapper">
+        <!-- 游戏说明部分，在大屏幕上显示在左侧 -->
+        <div class="game-instructions" id="gameInstructions">
+            <h3>游戏说明</h3>
+            <p>使用 ← → 键移动</p>
+            <p>走到平台边缘自动下落</p>
+            <p>按空格键向上跳</p>
+            <p>注意不同类型的平台:</p>
+            <p>绿色-普通, 紫色-移动, 黄色-破碎, 红色-有刺, 蓝色-弹簧</p>
+            <p>屏幕会不断向下滚动，不要掉出屏幕底部！</p>
+            <p><strong>高难度模式:</strong> 平台更少，间距更大！</p>
+            <!-- 移动设备上的关闭按钮 -->
+            <button id="closeInstructions" class="close-button">关闭</button>
         </div>
-        <canvas id="gameCanvas"></canvas>
-        <div class="game-controls">
-            <button id="startButton">开始游戏</button>
-            <button id="restartButton" style="display: none;">重新开始</button>
-        </div>
-        <div class="game-over" id="gameOver" style="display: none;">
-            <h2>游戏结束</h2>
-            <p>你的最终深度: <span id="finalDepth">0</span>m</p>
-            <button id="tryAgainButton">再试一次</button>
-        </div>
-        <div class="mobile-controls">
-            <button id="leftButton">←</button>
-            <button id="rightButton">→</button>
+
+        <div class="game-container">
+            <div class="game-header">
+                <div class="score">深度: <span id="depth">0</span>m</div>
+                <div class="lives">生命值: <span id="lives">100</span>/100</div>
+            </div>
+            <canvas id="gameCanvas"></canvas>
+            <!-- 移动设备上的移动控制按钮，放在游戏控制区域之前 -->
+            <div class="mobile-controls">
+                <button id="leftButton">←</button>
+                <button id="rightButton">→</button>
+            </div>
+            <div class="game-controls">
+                <button id="startButton">开始游戏</button>
+                <button id="restartButton" style="display: none;">重新开始</button>
+            </div>
+            <div class="game-over" id="gameOver" style="display: none;">
+                <h2>游戏结束</h2>
+                <p>你的最终深度: <span id="finalDepth">0</span>m</p>
+                <button id="tryAgainButton">再试一次</button>
+            </div>
         </div>
     </div>
 
+    <!-- 移动设备上的提示 -->
+    <div id="mobileInstructionHint" class="mobile-instruction-hint">
+        点击查看游戏说明
+    </div>
+
     <script src="game.js"></script>
+
+    <!-- 添加处理说明显示/隐藏的脚本 -->
+    <script>
+        // 在页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', function () {
+            const isMobile = window.innerWidth <= 768;
+            const instructions = document.getElementById('gameInstructions');
+            const hint = document.getElementById('mobileInstructionHint');
+            const closeBtn = document.getElementById('closeInstructions');
+
+            // 在移动设备上，默认隐藏说明
+            if (isMobile) {
+                instructions.classList.add('hide-instructions');
+
+                // 点击提示显示说明
+                hint.addEventListener('click', function () {
+                    instructions.classList.remove('hide-instructions');
+                    hint.style.display = 'none';
+                });
+
+                // 点击关闭按钮隐藏说明
+                closeBtn.addEventListener('click', function () {
+                    instructions.classList.add('hide-instructions');
+                    // 不再显示提示，因为用户已经看过说明
+                    localStorage.setItem('instructionsViewed', 'true');
+                });
+
+                // 检查用户是否已经查看过说明
+                if (localStorage.getItem('instructionsViewed') === 'true') {
+                    hint.style.display = 'none';
+                }
+            } else {
+                // 大屏幕上不显示关闭按钮
+                closeBtn.style.display = 'none';
+            }
+
+            // 窗口大小改变时的处理
+            window.addEventListener('resize', function () {
+                const isNowMobile = window.innerWidth <= 768;
+
+                if (isNowMobile !== isMobile) {
+                    // 刷新页面以适应新的布局
+                    location.reload();
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
