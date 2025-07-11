@@ -1,0 +1,24 @@
+{
+  "name": "ns-shaft-game",
+  "version": "1.0.0",
+  "description": "NS-SHAFT下落式平台游戏",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000",
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug"
+  },
+  "keywords": ["game", "javascript", "canvas", "platform"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0"
+  }
+}
