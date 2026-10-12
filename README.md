@@ -1,42 +1,53 @@
 # NS-SHAFT 游戏
 
-使用原生JavaScript实现的NS-SHAFT游戏，没有外部依赖。
+[![CI](https://github.com/aGameAgain/NS-SHAFT/actions/workflows/ci.yml/badge.svg)](https://github.com/aGameAgain/NS-SHAFT/actions/workflows/ci.yml)
 
-## 游戏说明
-
-NS-SHAFT是一个经典的下落式平台游戏。玩家控制一个角色，在平台上移动并向下探索，避开危险的障碍物，尽可能深入地下。
+经典下落式平台游戏，原生 JavaScript + Canvas 实现，**同一套代码运行在浏览器和微信小游戏**。
 
 ## 玩法
 
-- 使用左右方向键或A/D键控制角色左右移动
-- 角色走到平台边缘时会自动下落
-- 使用空格键从平台上向上跳跃
-- 尝试在不同类型的平台上着陆，避开危险的障碍物
-- 屏幕会不断向下滚动，不要掉出屏幕底部
-- 碰到顶部尖刺会减少生命值
-- 生命值归零时游戏结束
-- 随着深入，游戏难度会逐渐增加
+- ← → 或 A / D 左右移动（手机/小游戏：底部 ◀ ▶ 按钮）
+- 空格向上跳（手机/小游戏：「跳」按钮）
+- 走到平台边缘自动下落；屏幕会不断向下滚动，不要掉出屏幕底部
+- 碰到顶部尖刺会受伤并从平台上跌落；生命值归零游戏结束
+- P / Esc 暂停，R 重开，`` ` `` 显示调试信息
 
-## 平台类型
+| 平台 | 颜色 | 效果 |
+| --- | --- | --- |
+| 普通 | 绿 | 安全 |
+| 移动 | 紫 | 左右移动，站在上面会被带着走 |
+| 破碎 | 黄 | 站上去 1 秒后碎裂 |
+| 尖刺 | 红 | 穿过时持续扣血 |
+| 弹簧 | 蓝 | 把玩家弹起 |
 
-- 绿色平台：普通平台，安全稳定
-- 紫色平台：移动平台，会左右移动
-- 黄色平台：破碎平台，站上去2秒后破碎消失
-- 红色平台：尖刺平台，碰到会减少生命值
-- 蓝色平台：弹簧平台，踩上去会弹跳向上
+深度超过 100m / 200m / 500m 后危险平台比例逐级提高。
 
-## 生命系统
+## 开发
 
-- 玩家初始生命值为100点
-- 碰到尖刺会减少1点生命值
-- 掉出屏幕底部或生命值归零会导致游戏结束
+```bash
+npm install
+npm run dev            # http://localhost:5173  网页版
+                       # http://localhost:5173/wechat.html  浏览器里模拟微信小游戏
+npm run build          # dist/web（网页）+ dist/wechat（小游戏）
+npm run dev:wechat     # 小游戏开发构建 + watch，用微信开发者工具导入 dist/wechat
+```
 
-## 运行游戏
+调试参数：`?seed=123` 固定关卡，`?debug` 调试面板，`?touch=1` 强制触控按钮；
+控制台 `__NS_SHAFT__.getSnapshot()` / `__NS_SHAFT__.advance(60)`。
 
-直接在浏览器中打开index.html文件即可开始游戏。
+## 测试
 
-## 技术实现
+```bash
+npm run lint           # ESLint（含分层约束）
+npm run test:unit      # Vitest：逻辑 / 渲染 / 应用层 + 小游戏产物沙箱测试
+npm run test:coverage  # 带覆盖率
+npx playwright install # 首次运行 e2e 前
+npm run test:e2e       # Playwright：桌面 Chrome / Firefox / Safari + 移动端 Chrome
+npm test               # 全部
+```
 
-- 纯JavaScript实现，无外部依赖
-- 使用HTML5 Canvas进行游戏渲染
-- 响应式设计，适应不同屏幕尺寸 
+## 文档
+
+- [架构与游戏逻辑说明](docs/ARCHITECTURE.md)：逻辑梳理、已修复问题、分层、微信移植、调试方法
+- [迭代规划](docs/ROADMAP.md)
+- [测试说明](tests/README.md)
