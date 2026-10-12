@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NS-SHAFT 微信小游戏模拟器</title>
+    <link rel="icon" href="./favicon.ico" type="image/x-icon">
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #111;
+            color: #ccc;
+            font: 13px sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .wx-device {
+            border: 10px solid #000;
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 0 0 2px #444;
+        }
+
+        .wx-device canvas {
+            display: block;
+        }
+
+        a {
+            color: #8BC34A;
+        }
+    </style>
+</head>
+
+<body>
+    <div>微信小游戏运行时模拟（wx shim）·
+        机型: <a href="?device=iphonex">iPhone X</a> / <a href="?device=iphone8">iPhone 8</a> / <a href="?device=android">Android</a>
+        · 调试对象: <code>GameGlobal.__NS_SHAFT__</code>
+    </div>
+    <div id="device"></div>
+    <script type="module" src="./dev/wechat-sim.js"></script>
+</body>
+
+</html>

@@ -15,7 +15,6 @@ body {
     overflow: hidden;
 }
 
-/* 大屏幕布局 */
 .game-wrapper {
     display: flex;
     flex-direction: row;
@@ -26,38 +25,22 @@ body {
 }
 
 .game-container {
-    position: relative;
     width: 400px;
     max-width: 95vw;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.game-header {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    padding: 10px;
-    background-color: #333;
-    border-radius: 5px 5px 0 0;
 }
 
 #gameCanvas {
-    background-color: #000;
+    display: block;
+    width: 100%;
+    height: 680px;
+    max-height: 95vh;
     border: 2px solid #444;
-    width: 100%;
-    height: 600px;
-}
-
-.game-controls {
-    width: 100%;
-    padding: 10px;
-    background-color: #333;
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    border-radius: 0 0 5px 5px;
+    border-radius: 5px;
+    background-color: #000;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 button {
@@ -65,53 +48,10 @@ button {
     color: white;
     border: none;
     padding: 10px 20px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
     font-size: 16px;
-    margin: 4px 2px;
     cursor: pointer;
     border-radius: 5px;
     transition: background-color 0.3s;
-}
-
-button:hover {
-    background-color: #45a049;
-}
-
-button:active {
-    background-color: #3e8e41;
-}
-
-.game-over {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 20px;
-    border-radius: 10px;
-    text-align: center;
-    width: 80%;
-}
-
-.game-over h2 {
-    color: #f44336;
-    margin-bottom: 15px;
-}
-
-.mobile-controls {
-    display: none;
-    width: 100%;
-    padding: 10px;
-    gap: 20px;
-    justify-content: space-between;
-}
-
-.mobile-controls button {
-    flex: 1;
-    padding: 15px;
-    font-size: 24px;
 }
 
 .game-instructions {
@@ -120,7 +60,6 @@ button:active {
     padding: 15px;
     border-radius: 5px;
     width: 250px;
-    transition: all 0.3s ease;
 }
 
 .game-instructions h3 {
@@ -134,8 +73,12 @@ button:active {
     font-size: 14px;
 }
 
+.game-instructions .shortcut {
+    color: #aaa;
+    font-size: 12px;
+}
+
 .close-button {
-    display: none;
     width: 100%;
     margin-top: 15px;
     background-color: #f44336;
@@ -143,14 +86,10 @@ button:active {
     padding: 8px;
 }
 
-.close-button:hover {
-    background-color: #d32f2f;
-}
-
 .mobile-instruction-hint {
     display: none;
     position: fixed;
-    bottom: 70px;
+    top: 48px;
     left: 50%;
     transform: translateX(-50%);
     background-color: rgba(0, 0, 0, 0.8);
@@ -158,19 +97,16 @@ button:active {
     border-radius: 20px;
     z-index: 100;
     font-size: 14px;
-    text-align: center;
+    cursor: pointer;
     box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
     body {
-        padding: 0;
-        align-items: flex-start;
+        align-items: stretch;
     }
 
     .game-wrapper {
-        flex-direction: column;
         width: 100%;
         height: 100%;
         max-width: 100%;
@@ -179,48 +115,14 @@ button:active {
     .game-container {
         width: 100%;
         max-width: 100%;
-        height: 100vh;
-        padding: 0;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
+        height: 100%;
     }
 
     #gameCanvas {
-        height: calc(100vh - 170px);
+        height: 100%;
+        max-height: none;
+        border: none;
         border-radius: 0;
-        border-left: none;
-        border-right: none;
-        flex: 1;
-    }
-
-    .game-header {
-        width: 100%;
-        border-radius: 0;
-    }
-
-    .mobile-controls {
-        display: flex;
-        width: 100%;
-        padding: 10px;
-        background-color: rgba(51, 51, 51, 0.8);
-        position: relative;
-        z-index: 6;
-    }
-
-    .game-controls {
-        border-radius: 0;
-        position: relative;
-        z-index: 7;
-        padding: 10px;
-    }
-
-    .mobile-controls button {
-        flex: 1;
-        padding: 15px 0;
-        margin: 0 10px;
-        font-size: 28px;
-        border-radius: 10px;
     }
 
     .game-instructions {
@@ -236,35 +138,11 @@ button:active {
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
     }
 
-    .close-button {
-        display: block;
-    }
-
     .hide-instructions {
         display: none;
     }
 
     .mobile-instruction-hint {
         display: block;
-    }
-}
-
-@media (max-width: 480px) {
-    .game-header {
-        padding: 5px;
-    }
-
-    .game-controls {
-        padding: 10px 5px;
-    }
-
-    #gameCanvas {
-        height: calc(100vh - 180px);
-    }
-
-    .mobile-controls button {
-        padding: 12px 0;
-        margin: 0 5px;
-        font-size: 24px;
     }
 }

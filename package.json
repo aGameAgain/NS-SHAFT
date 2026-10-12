@@ -2,23 +2,43 @@
   "name": "ns-shaft-game",
   "version": "1.0.0",
   "description": "NS-SHAFT下落式平台游戏",
-  "main": "index.html",
   "scripts": {
-    "start": "python3 -m http.server 8000",
-    "dev": "python3 -m http.server 8000",
-    "test": "npm run test:unit && npm run test:e2e",
+    "start": "vite",
+    "dev": "vite",
+    "test": "npm run lint && npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "build": "npm run build:web && npm run build:wechat",
+    "build:web": "vite build",
+    "build:wechat": "vite build --config vite.config.wechat.js",
+    "build:wechat:dev": "vite build --config vite.config.wechat.js --mode development",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "test:coverage": "vitest run --coverage",
+    "dev:wechat": "vite build --config vite.config.wechat.js --mode development --watch"
   },
-  "keywords": ["game", "javascript", "canvas", "platform"],
+  "keywords": [
+    "game",
+    "javascript",
+    "canvas",
+    "platform"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@playwright/test": "^1.40.0",
-    "vitest": "^1.0.0",
-    "jsdom": "^23.0.0"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@vitest/coverage-v8": "^5.0.3",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20.19"
   }
 }
