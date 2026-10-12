@@ -17,9 +17,10 @@ jobs:
   check:
     name: Lint · Unit · Build
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -50,6 +51,7 @@ jobs:
     name: E2E (${{ matrix.project }})
     needs: check
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -63,8 +65,8 @@ jobs:
           - project: webkit
             browser: webkit
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -73,8 +75,30 @@ jobs:
         with:
           name: web-dist
           path: dist/web
-      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Resolve Playwright version
+        id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-${{ matrix.browser }}
+      # 浏览器下载偶发卡死：限制单次时长并重试
+      - name: Install Playwright browser
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 12
+        run: |
+          for attempt in 1 2 3; do
+            timeout 240 npx playwright install --with-deps ${{ matrix.browser }} && exit 0
+            echo "::warning::playwright install attempt $attempt failed, retrying"
+            sleep $((attempt * 10))
+          done
+          exit 1
+      - name: Install Playwright system deps
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
       - run: npx playwright test --project=${{ matrix.project }}
+        timeout-minutes: 10
         env:
           CI: true
       - uses: actions/upload-artifact@v4
@@ -89,6 +113,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [check, e2e]
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       pages: write
       id-token: write
