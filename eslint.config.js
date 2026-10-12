@@ -49,7 +49,7 @@ export default [
 
     // 测试与工具配置
     {
-        files: ['tests/**/*.js', '*.config.js'],
+        files: ['tests/**/*.js', '*.config.js', 'scripts/**/*.mjs'],
         languageOptions: { globals: { ...globals.node } }
     },
     {

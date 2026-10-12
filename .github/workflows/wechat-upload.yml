@@ -1,0 +1,89 @@
+name: WeChat Upload
+
+# 用 miniprogram-ci 把小游戏上传为开发版 / 生成预览二维码。
+# 需要在仓库 Settings → Secrets 中配置 WECHAT_APPID 与 WECHAT_PRIVATE_KEY（代码上传密钥），
+# 并在微信公众平台「开发管理 → 开发设置 → 小程序代码上传」中关闭 IP 白名单
+# （GitHub 托管 runner 的出口 IP 不固定），或改用固定出口 IP 的 self-hosted runner。
+# 未配置密钥时只做 dry run，不会失败。
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: upload = 上传开发版，preview = 生成预览二维码
+        type: choice
+        options: [preview, upload]
+        default: preview
+      version:
+        description: 版本号（默认取 package.json）
+        required: false
+      desc:
+        description: 版本备注
+        required: false
+  # 主干 CI 通过后自动上传开发版，需要把仓库变量 WECHAT_AUTO_UPLOAD 设为 true
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wechat-upload
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       vars.WECHAT_AUTO_UPLOAD == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      WECHAT_APPID: ${{ secrets.WECHAT_APPID }}
+      WECHAT_PRIVATE_KEY: ${{ secrets.WECHAT_PRIVATE_KEY }}
+      ACTION: ${{ inputs.action || 'upload' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:wechat
+      - name: Check credentials
+        id: creds
+        run: |
+          if [ -n "$WECHAT_APPID" ] && [ -n "$WECHAT_PRIVATE_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::未配置 WECHAT_APPID / WECHAT_PRIVATE_KEY，仅执行 dry run"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Dry run
+        if: steps.creds.outputs.configured != 'true'
+        run: npm run wechat:upload -- --dry-run --action "$ACTION"
+      - name: Install miniprogram-ci
+        if: steps.creds.outputs.configured == 'true'
+        run: npm install --no-save --no-audit --no-fund miniprogram-ci@^2
+      - name: ${{ env.ACTION }}
+        if: steps.creds.outputs.configured == 'true'
+        env:
+          VERSION: ${{ inputs.version }}
+          DESC: ${{ inputs.desc }}
+        run: |
+          args=(--action "$ACTION")
+          [ -n "$VERSION" ] && args+=(--version "$VERSION")
+          [ -n "$DESC" ] && args+=(--desc "$DESC")
+          npm run wechat:upload -- "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: steps.creds.outputs.configured == 'true' && env.ACTION == 'preview'
+        with:
+          name: wechat-preview-qrcode
+          path: dist/wechat-preview.jpg
+          retention-days: 7

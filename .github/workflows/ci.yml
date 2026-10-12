@@ -30,6 +30,8 @@ jobs:
       - name: Unit tests (+ WeChat bundle smoke test) with coverage
         run: npm run test:coverage
       - run: npm run build
+      - name: Validate WeChat upload script (dry run)
+        run: npm run wechat:upload -- --dry-run
       - uses: actions/upload-artifact@v4
         with:
           name: web-dist
