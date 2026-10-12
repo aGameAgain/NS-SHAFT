@@ -131,6 +131,28 @@ test.describe('Web build', () => {
         expect((await snapshot(page)).rules).toBe('nsshaft');
     });
 
+    test('creates the audio context on the first gesture and mutes with M', async ({ page }, testInfo) => {
+        const errors = await gotoGame(page);
+        const audioState = () => page.evaluate(() => window.__NS_SHAFT__.sound.ctx?.state ?? null);
+        expect((await snapshot(page)).menu.map(b => b.id)).toContain('sound');
+        expect(await audioState()).toBeNull();
+        await page.keyboard.press('Space');
+        await waitForScene(page, 'playing');
+        // 无头 Firefox 没有音频设备，上下文会停留在 suspended
+        const expected = testInfo.project.name === 'chromium' ? ['running'] : ['running', 'suspended'];
+        await expect.poll(audioState).toBeTruthy();
+        expect(expected).toContain(await audioState());
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('Space');
+
+        await page.keyboard.press('m');
+        expect((await snapshot(page)).muted).toBe(true);
+        await page.reload();
+        await page.waitForFunction(() => Boolean(window.__NS_SHAFT__));
+        expect((await snapshot(page)).muted).toBe(true);
+        expect(errors).toEqual([]);
+    });
+
     test('starts the daily challenge with C', async ({ page }) => {
         await gotoGame(page, '/');
         await page.keyboard.press('c');
