@@ -19,6 +19,7 @@ export const PLATFORM_COLORS = {
 };
 
 // determinePlatformType 的累积顺序，新增类型只能追加在末尾，否则旧 seed 的关卡会变化
+/** @type {Array<[string, number]>} */
 const TIER_KEYS = [
     ['spike', PLATFORM_TYPES.SPIKE],
     ['breaking', PLATFORM_TYPES.BREAKING],
@@ -28,6 +29,12 @@ const TIER_KEYS = [
 ];
 
 export class Platform {
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} [type]
+     * @param {() => number} [rng]
+     */
     constructor(x, y, type = PLATFORM_TYPES.NORMAL, rng = Math.random) {
         this.x = x;
         this.y = y;

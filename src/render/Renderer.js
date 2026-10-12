@@ -4,6 +4,25 @@ import { PLATFORM_TYPES } from '../core/Platform.js';
 const FONT = 'sans-serif';
 
 /**
+ * @typedef {object} Frame
+ * @property {'title'|'playing'|'paused'|'gameover'} scene
+ * @property {import('../core/GameSession.js').GameSession} session
+ * @property {ReturnType<typeof import('../app/layout.js').computeLayout>} layout
+ * @property {Array<{id: string, label?: string, x: number, y: number, width: number, height: number}>} [buttons]  触控按钮
+ * @property {Set<string>} [pressed]
+ * @property {Array<{id: string, x: number, y: number, width: number, height: number}>} [menu]  菜单按钮
+ * @property {number} [bestDepth]
+ * @property {'normal'|'daily'|'replay'} [mode]
+ * @property {string} [modeName]
+ * @property {string} [dailyKey]
+ * @property {string} [notice]
+ * @property {string} [hudLabel]
+ * @property {boolean} [muted]
+ * @property {boolean} [touchControls]
+ * @property {{fps: number}|null} [debug]
+ */
+
+/**
  * 只依赖 CanvasRenderingContext2D 的通用子集，浏览器和微信小游戏共用。
  * 所有坐标都是逻辑坐标，缩放由 setTransform 统一处理。
  */
@@ -12,16 +31,7 @@ export class Renderer {
         this.ctx = ctx;
     }
 
-    /**
-     * @param {object} frame
-     * @param {'title'|'playing'|'paused'|'gameover'} frame.scene
-     * @param {import('../core/GameSession.js').GameSession} frame.session
-     * @param {ReturnType<import('../app/layout.js').computeLayout>} frame.layout
-     * @param {Array} [frame.buttons]
-     * @param {Set<string>} [frame.pressed]
-     * @param {number} [frame.bestDepth]
-     * @param {object|null} [frame.debug]
-     */
+    /** @param {Frame} frame */
     render(frame) {
         const { ctx } = this;
         const { layout } = frame;
@@ -40,6 +50,7 @@ export class Renderer {
         if (frame.debug) this.drawDebug(frame);
     }
 
+    /** @param {Frame} frame */
     drawWorld({ session, layout, debug }) {
         const { ctx } = this;
         const depth = session.depth;
@@ -175,6 +186,7 @@ export class Renderer {
         ctx.stroke();
     }
 
+    /** @param {Frame} frame */
     drawHud({ session, layout, hudLabel }) {
         const label = hudLabel ?? (session.rules.id === 'classic' ? '' : session.rules.name);
         const { ctx } = this;
@@ -198,6 +210,7 @@ export class Renderer {
         }
     }
 
+    /** @param {Frame} frame */
     drawTouchControls({ layout, buttons = [], pressed }) {
         if (!layout.controlsHeight) return;
         const { ctx } = this;
@@ -215,6 +228,7 @@ export class Renderer {
         }
     }
 
+    /** @param {Frame} frame */
     drawOverlay(frame) {
         const { scene, layout } = frame;
         if (scene === 'playing') return;
@@ -255,6 +269,10 @@ export class Renderer {
         this.drawMenu(frame);
     }
 
+    /**
+     * @param {string} id
+     * @param {Frame} frame
+     */
     menuLabel(id, { modeName = '', dailyKey = '', mode = 'normal', muted = false }) {
         switch (id) {
             case 'mode': return `◀ 模式: ${modeName} ▶`;
@@ -267,6 +285,7 @@ export class Renderer {
         }
     }
 
+    /** @param {Frame} frame */
     drawMenu(frame) {
         const { ctx } = this;
         ctx.font = `18px ${FONT}`;
@@ -287,6 +306,7 @@ export class Renderer {
         ctx.strokeRect(x, y, w, h);
     }
 
+    /** @param {Frame} frame */
     drawDebug({ session, layout, debug }) {
         const { ctx } = this;
         const p = session.player;

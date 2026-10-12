@@ -11,7 +11,7 @@ const HURT_COOLDOWN_SECONDS = 0.2;
  */
 export class SoundPlayer {
     /**
-     * @param {() => object|null} createContext
+     * @param {() => any} createContext  返回 WebAudio 兼容的 AudioContext
      * @param {{muted?: boolean}} [options]
      */
     constructor(createContext, { muted = false } = {}) {

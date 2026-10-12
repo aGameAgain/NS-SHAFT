@@ -44,11 +44,12 @@ export function decodeReplay(code) {
     if (!rules || !Number.isInteger(seed) || seed < 0) {
         throw new Error('回放数据损坏');
     }
+    /** @type {Array<[number, number]>} */
     const runs = runsText === '' ? [] : runsText.split('_').map(token => {
         const mask = Number(token[0]);
         const count = parseInt(token.slice(1), 36);
         if (!(mask >= 0 && mask <= 7) || !(count > 0)) throw new Error('回放数据损坏');
-        return [mask, count];
+        return /** @type {[number, number]} */ ([mask, count]);
     });
     const ticks = runs.reduce((sum, [, count]) => sum + count, 0);
     return { rules, seed, ticks, runs };

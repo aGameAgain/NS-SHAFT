@@ -16,10 +16,12 @@ const MAX_STEPS_PER_FRAME = 5;
 // 游戏结束后短暂屏蔽输入，避免误触立即重开
 const GAMEOVER_INPUT_DELAY_TICKS = 30;
 
+/** @typedef {'title'|'playing'|'paused'|'gameover'} Scene */
+
 /**
  * @typedef {object} PlatformAdapter
  * @property {string} name
- * @property {object} canvas                      主画布（需支持 getContext('2d')、width/height）
+ * @property {{width: number, height: number, getContext: (type: '2d') => any}} canvas  主画布
  * @property {() => {width: number, height: number, pixelRatio?: number, safeTop?: number}} getViewport  CSS 像素
  * @property {boolean} touchCapable
  * @property {(cb: () => void) => void} onResize
@@ -29,7 +31,7 @@ const GAMEOVER_INPUT_DELAY_TICKS = 30;
  * @property {{get: (key: string) => string|null, set: (key: string, value: string) => void}} storage
  * @property {(cb: () => void) => void} requestFrame
  * @property {() => number} now                    毫秒
- * @property {() => object|null} [createAudioContext]  返回 WebAudio 兼容的 AudioContext，不支持时为 null
+ * @property {() => any} [createAudioContext]  返回 WebAudio 兼容的 AudioContext，不支持时为 null
  */
 
 /**
@@ -60,6 +62,7 @@ export class GameApp {
         this.input = new InputState();
         this.ctx = platform.canvas.getContext('2d');
         this.renderer = new Renderer(this.ctx);
+        /** @type {Scene} */
         this.scene = 'title';
         this.sceneTicks = 0;
         /** @type {'normal'|'daily'|'replay'} */
@@ -226,6 +229,7 @@ export class GameApp {
         return undefined;
     }
 
+    /** @param {Scene} scene */
     setScene(scene) {
         this.scene = scene;
         this.sceneTicks = 0;

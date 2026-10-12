@@ -8,7 +8,8 @@ const touchParam = params.get('touch');
 
 setupInstructions();
 
-const platform = createWebPlatform(document.getElementById('gameCanvas'), {
+const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('gameCanvas'));
+const platform = createWebPlatform(canvas, {
     forceTouch: touchParam === '1'
 });
 const app = new GameApp(platform, {
