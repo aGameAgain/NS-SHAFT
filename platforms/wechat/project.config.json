@@ -1,0 +1,16 @@
+{
+  "description": "NS-SHAFT 微信小游戏（由 npm run build:wechat 生成，请勿直接修改 dist 下的副本）",
+  "compileType": "game",
+  "appid": "touristappid",
+  "projectname": "ns-shaft",
+  "libVersion": "3.0.0",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": false,
+    "minified": true,
+    "urlCheck": true,
+    "uploadWithSourceMap": true
+  },
+  "condition": {}
+}
