@@ -96,6 +96,45 @@ describe('Physics', () => {
         expect(player.velocityY).toBeGreaterThanOrEqual(2);
     });
 
+    it('reports spike contact on every tick while passing through the spike band', () => {
+        const spike = new Platform(100, 300, PLATFORM_TYPES.SPIKE);
+        player.x = 110;
+        player.y = 300 - player.height - 1;
+        player.velocityY = 2;
+        let contacts = 0;
+        for (let i = 0; i < 20; i++) {
+            player.applyGravity();
+            if (physics.checkCollisions(player, [spike])?.type === 'spike') contacts++;
+        }
+        expect(contacts).toBeGreaterThanOrEqual(3);
+        expect(player.isOnPlatform).toBe(false);
+    });
+
+    it('registers spike contact even when falling faster than the spike band', () => {
+        const spike = new Platform(100, 300, PLATFORM_TYPES.SPIKE);
+        const result = fallOnto(player, physics, spike, { gap: 1, vy: 60 });
+        expect(result?.type).toBe('spike');
+    });
+
+    it('lands on a normal platform under a spike band instead of reporting the spike', () => {
+        const spike = new Platform(100, 300, PLATFORM_TYPES.SPIKE);
+        const floor = new Platform(100, 310);
+        player.x = 110;
+        player.y = 310 - player.height - 1;
+        player.prevY = player.y;
+        player.velocityY = 2;
+        player.applyGravity();
+        expect(physics.checkCollisions(player, [spike, floor]).platform).toBe(floor);
+    });
+
+    it('lets the player stand on spikes when spikes are standable', () => {
+        const standable = new Physics({ spikeStandable: true });
+        const spike = new Platform(100, 300, PLATFORM_TYPES.SPIKE);
+        const result = fallOnto(player, standable, spike);
+        expect(result.type).toBe('spike');
+        expect(player.isOnPlatform).toBe(true);
+    });
+
     it('launches the player from spring platforms', () => {
         const spring = new Platform(100, 300, PLATFORM_TYPES.SPRING);
         const result = fallOnto(player, physics, spring);
