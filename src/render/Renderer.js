@@ -1,4 +1,4 @@
-import { CEILING, COLORS, MAX_LIVES } from '../core/config.js';
+import { CEILING, COLORS } from '../core/config.js';
 import { PLATFORM_TYPES } from '../core/Platform.js';
 
 const FONT = 'sans-serif';
@@ -54,7 +54,7 @@ export class Renderer {
         for (const platform of session.platforms) {
             const relativeY = platform.y - depth;
             if (relativeY >= -platform.height - 10 && relativeY <= layout.worldHeight) {
-                this.drawPlatform(platform, relativeY);
+                this.drawPlatform(platform, relativeY, session.tick);
                 if (debug) this.drawHitbox(platform.x, relativeY, platform.width, platform.height);
             }
         }
@@ -96,7 +96,7 @@ export class Renderer {
         }
     }
 
-    drawPlatform(platform, relativeY) {
+    drawPlatform(platform, relativeY, tick = 0) {
         const { ctx } = this;
         ctx.fillStyle = platform.breaking && platform.breakTime % 5 === 0
             ? COLORS.PLATFORM_FLASH
@@ -112,6 +112,8 @@ export class Renderer {
                 ctx.lineTo(platform.x + i, relativeY);
                 ctx.fill();
             }
+        } else if (platform.type === PLATFORM_TYPES.CONVEYOR) {
+            this.drawConveyor(platform, relativeY, tick);
         } else if (platform.type === PLATFORM_TYPES.SPRING) {
             ctx.fillStyle = platform.color;
             for (let i = 0; i < 3; i++) {
@@ -123,6 +125,30 @@ export class Renderer {
                 );
             }
         }
+    }
+
+    /** 箭头随 tick 沿传送方向滚动 */
+    drawConveyor(platform, relativeY, tick) {
+        const { ctx } = this;
+        const step = 12;
+        const dir = Math.sign(platform.surfaceSpeed) || 1;
+        const offset = ((tick * Math.abs(platform.surfaceSpeed)) % step) * dir;
+        const midY = relativeY + platform.height / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(platform.x, relativeY, platform.width, platform.height);
+        ctx.clip();
+        ctx.strokeStyle = '#424242';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = platform.x - step; x < platform.x + platform.width + step; x += step) {
+            const tip = x + offset + dir * 4;
+            ctx.moveTo(x + offset - dir * 2, relativeY + 3);
+            ctx.lineTo(tip, midY);
+            ctx.lineTo(x + offset - dir * 2, relativeY + platform.height - 3);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
 
     drawPlayer(player, relativeY) {
@@ -149,7 +175,8 @@ export class Renderer {
         ctx.stroke();
     }
 
-    drawHud({ session, layout }) {
+    drawHud({ session, layout, hudLabel }) {
+        const label = hudLabel ?? (session.rules.id === 'classic' ? '' : session.rules.name);
         const { ctx } = this;
         const y = layout.hudTop + layout.hudHeight / 2;
         ctx.fillStyle = COLORS.PANEL;
@@ -161,7 +188,14 @@ export class Renderer {
         ctx.textAlign = 'left';
         ctx.fillText(`深度: ${Math.floor(session.depth)}m`, 10, y);
         ctx.textAlign = 'right';
-        ctx.fillText(`生命值: ${session.state.lives}/${MAX_LIVES}`, layout.width - 10, y);
+        ctx.fillText(`生命值: ${session.state.lives}/${session.state.maxLives}`, layout.width - 10, y);
+
+        if (label) {
+            ctx.font = `12px ${FONT}`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#FFC107';
+            ctx.fillText(label, layout.width / 2, y);
+        }
     }
 
     drawTouchControls({ layout, buttons = [], pressed }) {

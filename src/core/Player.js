@@ -55,7 +55,7 @@ export class Player {
 
     followMovingPlatform() {
         if (this.isOnPlatform && this.currentPlatform && !this.currentPlatform.removed) {
-            this.x += this.currentPlatform.dx || 0;
+            this.x += (this.currentPlatform.dx || 0) + (this.currentPlatform.surfaceSpeed || 0);
         }
     }
 

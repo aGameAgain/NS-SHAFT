@@ -5,7 +5,8 @@ export const PLATFORM_TYPES = {
     MOVING: 1,
     BREAKING: 2,
     SPIKE: 3,
-    SPRING: 4
+    SPRING: 4,
+    CONVEYOR: 5
 };
 
 export const PLATFORM_COLORS = {
@@ -13,8 +14,18 @@ export const PLATFORM_COLORS = {
     [PLATFORM_TYPES.MOVING]: '#9C27B0',
     [PLATFORM_TYPES.BREAKING]: '#FFC107',
     [PLATFORM_TYPES.SPIKE]: '#F44336',
-    [PLATFORM_TYPES.SPRING]: '#2196F3'
+    [PLATFORM_TYPES.SPRING]: '#2196F3',
+    [PLATFORM_TYPES.CONVEYOR]: '#9E9E9E'
 };
+
+// determinePlatformType 的累积顺序，新增类型只能追加在末尾，否则旧 seed 的关卡会变化
+const TIER_KEYS = [
+    ['spike', PLATFORM_TYPES.SPIKE],
+    ['breaking', PLATFORM_TYPES.BREAKING],
+    ['moving', PLATFORM_TYPES.MOVING],
+    ['spring', PLATFORM_TYPES.SPRING],
+    ['conveyor', PLATFORM_TYPES.CONVEYOR]
+];
 
 export class Platform {
     constructor(x, y, type = PLATFORM_TYPES.NORMAL, rng = Math.random) {
@@ -29,6 +40,8 @@ export class Platform {
         this.speed = rng() * PLATFORM.MOVE_SPEED_RANGE + PLATFORM.MOVE_SPEED_MIN;
         // 本 tick 的水平位移，站在上面的玩家据此跟随
         this.dx = 0;
+        // 传送带表面速度：站在上面的玩家额外被推动，平台本身不动
+        this.surfaceSpeed = type === PLATFORM_TYPES.CONVEYOR ? this.direction * PLATFORM.CONVEYOR_SPEED : 0;
         this.breakTime = type === PLATFORM_TYPES.BREAKING ? PLATFORM.BREAK_TICKS : 0;
         this.color = this.getColor();
     }
@@ -65,11 +78,12 @@ export class Platform {
 }
 
 export class PlatformManager {
-    constructor(worldWidth, viewHeight, rng = Math.random) {
+    constructor(worldWidth, viewHeight, rng = Math.random, tiers = DIFFICULTY_TIERS) {
         this.platforms = [];
         this.worldWidth = worldWidth;
         this.viewHeight = viewHeight;
         this.rng = rng;
+        this.tiers = tiers;
         this.nextSpawnY = 0;
     }
 
@@ -101,18 +115,13 @@ export class PlatformManager {
     }
 
     determinePlatformType(depth) {
-        const tier = DIFFICULTY_TIERS.find(t => depth > t.minDepth);
+        const tier = this.tiers.find(t => depth > t.minDepth);
         if (!tier) return PLATFORM_TYPES.NORMAL;
 
         const rand = this.rng();
         let threshold = 0;
-        for (const [key, type] of [
-            ['spike', PLATFORM_TYPES.SPIKE],
-            ['breaking', PLATFORM_TYPES.BREAKING],
-            ['moving', PLATFORM_TYPES.MOVING],
-            ['spring', PLATFORM_TYPES.SPRING]
-        ]) {
-            threshold += tier[key];
+        for (const [key, type] of TIER_KEYS) {
+            threshold += tier[key] || 0;
             if (rand < threshold) return type;
         }
         return PLATFORM_TYPES.NORMAL;
