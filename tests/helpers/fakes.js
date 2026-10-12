@@ -25,7 +25,7 @@ export function createFakeCanvas(width = 400, height = 680) {
 }
 
 /** 手动驱动时间和帧的平台适配器替身 */
-export function createFakePlatform({ width = 400, height = 680, pixelRatio = 1, touchCapable = false } = {}) {
+export function createFakePlatform({ width = 400, height = 680, pixelRatio = 1, touchCapable = false, audio = null } = {}) {
     const handlers = { resize: [], key: [], visibility: [] };
     const store = new Map();
     let pointer = null;
@@ -52,6 +52,7 @@ export function createFakePlatform({ width = 400, height = 680, pixelRatio = 1, 
             frameCb = cb;
         },
         now: () => time,
+        ...(audio ? { createAudioContext: () => audio } : {}),
 
         // 测试控制
         store,
@@ -130,4 +131,39 @@ export function createFakeWx({ windowWidth = 375, windowHeight = 812, pixelRatio
         }
     };
     return wx;
+}
+
+/** WebAudio 子集替身：记录播放过的 buffer，currentTime 可手动推进 */
+export function createFakeAudioContext({ sampleRate = 8000, state = 'suspended' } = {}) {
+    const played = [];
+    const ctx = {
+        sampleRate,
+        state,
+        currentTime: 0,
+        destination: { kind: 'destination' },
+        played,
+        resumeCalls: 0,
+        resume() {
+            ctx.resumeCalls++;
+            ctx.state = 'running';
+            return Promise.resolve();
+        },
+        createBuffer(channels, length, rate) {
+            const data = new Float32Array(length);
+            return { numberOfChannels: channels, length, sampleRate: rate, getChannelData: () => data };
+        },
+        createBufferSource() {
+            const source = {
+                buffer: null,
+                connect(node) {
+                    source.output = node;
+                },
+                start() {
+                    played.push(source.buffer);
+                }
+            };
+            return source;
+        }
+    };
+    return ctx;
 }

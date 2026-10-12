@@ -66,6 +66,10 @@ describe('Renderer', () => {
         expect(texts).toEqual(expect.arrayContaining(['◀ 模式: 原版 ▶', '开始游戏', '每日挑战 10-12']));
         expect(texts.some(t => t.includes('C 每日挑战'))).toBe(true);
 
+        const sound = [{ id: 'sound', x: 0, y: 0, width: 10, height: 10 }];
+        expect(renderFrame({ scene: 'title', menu: sound, muted: false }).texts()).toContain('音效: 开');
+        expect(renderFrame({ scene: 'title', menu: sound, muted: true }).texts()).toContain('音效: 关');
+
         const retry = [{ id: 'retry', x: 0, y: 0, width: 10, height: 10 }];
         expect(renderFrame({ scene: 'gameover', menu: retry, mode: 'replay' }).texts()).toContain('重新播放');
         expect(renderFrame({ scene: 'gameover', menu: retry, mode: 'daily' }).texts()).toContain('再次挑战');

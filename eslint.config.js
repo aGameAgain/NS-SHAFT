@@ -2,7 +2,8 @@ import js from '@eslint/js';
 import globals from 'globals';
 
 const LAYER_RESTRICTIONS = {
-    core: ['../app/*', '../render/*', '../platform/*', '../entries/*', '../web/*'],
+    core: ['../app/*', '../render/*', '../audio/*', '../platform/*', '../entries/*', '../web/*'],
+    audio: ['../app/*', '../render/*', '../platform/*', '../entries/*', '../web/*'],
     render: ['../app/*', '../platform/*', '../entries/*', '../web/*'],
     app: ['../platform/*', '../entries/*', '../web/*']
 };
@@ -23,6 +24,7 @@ export default [
 
     // 平台无关层：只允许 ECMAScript 内置对象，出现 window/document/wx/setTimeout 等会被 no-undef 拦截
     { files: ['src/core/**/*.js'], languageOptions: { globals: {} }, rules: restrictImports(LAYER_RESTRICTIONS.core) },
+    { files: ['src/audio/**/*.js'], languageOptions: { globals: {} }, rules: restrictImports(LAYER_RESTRICTIONS.audio) },
     { files: ['src/render/**/*.js'], languageOptions: { globals: {} }, rules: restrictImports(LAYER_RESTRICTIONS.render) },
     { files: ['src/app/**/*.js'], languageOptions: { globals: {} }, rules: restrictImports(LAYER_RESTRICTIONS.app) },
 

@@ -56,7 +56,7 @@ const MENU_BUTTON = { width: 220, height: 44 };
  * 标题 / 结束界面上的菜单按钮（位置相对游戏世界区域中心）。
  * 文案由渲染层根据 id 和当前状态决定。
  */
-export function getMenuButtons(layout, scene) {
+export function getMenuButtons(layout, scene, { sound = false } = {}) {
     const cx = layout.width / 2;
     const cy = layout.worldTop + layout.worldHeight / 2;
     const button = (id, dy) => ({
@@ -66,7 +66,11 @@ export function getMenuButtons(layout, scene) {
         width: MENU_BUTTON.width,
         height: MENU_BUTTON.height
     });
-    if (scene === 'title') return [button('mode', -10), button('start', 50), button('daily', 110)];
+    if (scene === 'title') {
+        const buttons = [button('mode', -10), button('start', 50), button('daily', 110)];
+        if (sound) buttons.push(button('sound', 170));
+        return buttons;
+    }
     if (scene === 'gameover') return [button('retry', 60), button('title', 120)];
     return [];
 }

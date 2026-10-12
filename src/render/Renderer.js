@@ -243,7 +243,7 @@ export class Renderer {
             text('NS-SHAFT', -120, 36);
             text(`最佳深度: ${Math.floor(bestDepth)}m`, -72, 14);
             if (frame.notice) text(frame.notice, -48, 13, '#FF8A65');
-            if (!frame.touchControls) text('← → 切换模式 · 空格开始 · C 每日挑战', 165, 12, '#aaa');
+            if (!frame.touchControls) text('← → 切换模式 · 空格开始 · C 每日挑战 · M 静音', 220, 12, '#aaa');
         } else if (scene === 'gameover') {
             text(mode === 'replay' ? '回放结束' : '游戏结束', -110, 32);
             text(`你的最终深度: ${Math.floor(session.depth)}m`, -60, 18);
@@ -255,13 +255,14 @@ export class Renderer {
         this.drawMenu(frame);
     }
 
-    menuLabel(id, { modeName = '', dailyKey = '', mode = 'normal' }) {
+    menuLabel(id, { modeName = '', dailyKey = '', mode = 'normal', muted = false }) {
         switch (id) {
             case 'mode': return `◀ 模式: ${modeName} ▶`;
             case 'start': return '开始游戏';
             case 'daily': return `每日挑战 ${dailyKey.slice(5)}`;
             case 'retry': return mode === 'replay' ? '重新播放' : mode === 'daily' ? '再次挑战' : '再试一次';
             case 'title': return '返回标题';
+            case 'sound': return `音效: ${muted ? '关' : '开'}`;
             default: return id;
         }
     }
@@ -272,7 +273,7 @@ export class Renderer {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         for (const b of frame.menu || []) {
-            ctx.fillStyle = b.id === 'mode' || b.id === 'title' ? '#555' : COLORS.ACCENT;
+            ctx.fillStyle = b.id === 'mode' || b.id === 'title' || b.id === 'sound' ? '#555' : COLORS.ACCENT;
             ctx.fillRect(b.x, b.y, b.width, b.height);
             ctx.fillStyle = COLORS.TEXT;
             ctx.fillText(this.menuLabel(b.id, frame), b.x + b.width / 2, b.y + b.height / 2);

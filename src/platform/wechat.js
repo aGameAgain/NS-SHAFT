@@ -73,6 +73,9 @@ export function createWechatPlatform(wx, { raf } = {}) {
             }
         },
 
+        // 基础库 2.19.0+ 提供 WebAudio 兼容接口
+        createAudioContext: () => (wx.createWebAudioContext ? wx.createWebAudioContext() : null),
+
         requestFrame,
         now: () => Date.now()
     };

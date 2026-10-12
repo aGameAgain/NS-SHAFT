@@ -5,10 +5,12 @@ import { DEFAULT_RULESET, RULESET_IDS, getRules } from '../core/rules.js';
 import { ReplayPlayer, ReplayRecorder, dailySeed, decodeReplay } from '../core/replay.js';
 import { Renderer } from '../render/Renderer.js';
 import { InputState } from './InputState.js';
+import { SoundPlayer } from './SoundPlayer.js';
 import { computeLayout, getMenuButtons, getTouchButtons, hitTest } from './layout.js';
 
 const BEST_DEPTH_KEY = 'ns-shaft:bestDepth';
 const RULES_KEY = 'ns-shaft:rules';
+const MUTED_KEY = 'ns-shaft:muted';
 // 单帧最多追帧数，防止切后台回来后一次性模拟太久
 const MAX_STEPS_PER_FRAME = 5;
 // 游戏结束后短暂屏蔽输入，避免误触立即重开
@@ -38,7 +40,8 @@ const GAMEOVER_INPUT_DELAY_TICKS = 30;
  * @property {boolean} [debug]
  * @property {boolean} [touchControls]
  * @property {() => Date} [today]      每日挑战取日期的来源，测试时可注入
- * @property {{handleEvents: (events: Array<{type: string}>) => void, unlock?: () => void}} [sound]
+ * @property {{handleEvents: (events: Array<{type: string}>) => void, unlock?: () => void, toggleMute?: () => boolean, muted?: boolean}|null} [sound]
+ *   默认在平台提供 createAudioContext 时使用 SoundPlayer，传 null 关闭音效
  */
 
 export class GameApp {
@@ -52,7 +55,7 @@ export class GameApp {
         this.debugEnabled = Boolean(options.debug);
         this.touchControls = options.touchControls ?? platform.touchCapable;
         this.today = options.today || (() => new Date());
-        this.sound = options.sound || null;
+        this.sound = options.sound !== undefined ? options.sound : this.createSoundPlayer();
 
         this.input = new InputState();
         this.ctx = platform.canvas.getContext('2d');
@@ -83,6 +86,21 @@ export class GameApp {
         if (options.replay) this.startReplay(options.replay);
     }
 
+    createSoundPlayer() {
+        const { platform } = this;
+        if (typeof platform.createAudioContext !== 'function') return null;
+        return new SoundPlayer(() => platform.createAudioContext(), {
+            muted: platform.storage.get(MUTED_KEY) === '1'
+        });
+    }
+
+    toggleMute() {
+        if (!this.sound?.toggleMute) return;
+        this.sound.unlock?.();
+        const muted = this.sound.toggleMute();
+        this.platform.storage.set(MUTED_KEY, muted ? '1' : '0');
+    }
+
     nextSeed() {
         return this.fixedSeed ?? randomSeed();
     }
@@ -97,7 +115,7 @@ export class GameApp {
     }
 
     get menuButtons() {
-        return getMenuButtons(this.layout, this.scene);
+        return getMenuButtons(this.layout, this.scene, { sound: Boolean(this.sound?.toggleMute) });
     }
 
     bindPlatform() {
@@ -195,6 +213,7 @@ export class GameApp {
             modeName: rules.name,
             dailyKey: this.daily?.key ?? this.todayKey().key,
             notice: this.notice,
+            muted: Boolean(this.sound?.muted),
             hudLabel: this.hudLabel(),
             touchControls: this.touchControls,
             debug: this.debugEnabled ? { fps: this.fps } : null
@@ -312,6 +331,7 @@ export class GameApp {
             case 'daily': this.startGame('daily'); break;
             case 'retry': this.restart(); break;
             case 'title': this.goToTitle(); break;
+            case 'sound': this.toggleMute(); break;
         }
     }
 
@@ -340,6 +360,10 @@ export class GameApp {
         }
         if (pressed && key === 'r') {
             this.restart();
+            return;
+        }
+        if (pressed && key === 'm') {
+            this.toggleMute();
             return;
         }
         if (pressed && key === '`') {
@@ -413,6 +437,7 @@ export class GameApp {
             scene: this.scene,
             mode: this.mode,
             bestDepth: this.bestDepth,
+            muted: Boolean(this.sound?.muted),
             touchControls: this.touchControls,
             layout: {
                 width: this.layout.width,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { GameApp } from '../../src/app/GameApp.js';
 import { SCREEN_SCROLL_SPEED } from '../../src/core/config.js';
 import { dailySeed } from '../../src/core/replay.js';
-import { createFakePlatform } from '../helpers/fakes.js';
+import { createFakeAudioContext, createFakePlatform } from '../helpers/fakes.js';
 
 function createApp(options = {}, platformOptions = {}) {
     const platform = createFakePlatform(platformOptions);
@@ -302,6 +302,46 @@ describe('GameApp', () => {
         platform.runFrames(30);
         expect(events.map(e => e.type)).toEqual(['unlock', 'land']);
         expect(app.scene).toBe('playing');
+    });
+
+    describe('built-in sound', () => {
+        it('plays synthesized effects through the platform audio context after the first gesture', () => {
+            const audio = createFakeAudioContext();
+            const { app, platform } = createApp({ sound: undefined }, { audio });
+            expect(app.sound).not.toBeNull();
+            expect(audio.resumeCalls).toBe(0);
+            platform.pressKey(' ');
+            expect(audio.resumeCalls).toBe(1);
+            platform.runFrames(30);
+            expect(audio.played.length).toBeGreaterThan(0);
+        });
+
+        it('toggles mute with M and from the title menu, persisting the choice', () => {
+            const audio = createFakeAudioContext();
+            const { app, platform } = createApp({}, { audio });
+            const soundButton = app.getSnapshot().menu.find(b => b.id === 'sound');
+            expect(soundButton).toBeDefined();
+            platform.pressKey('m');
+            expect(app.sound.muted).toBe(true);
+            expect(platform.store.get('ns-shaft:muted')).toBe('1');
+            platform.runFrames(1);
+            expect(platform.canvas.ctx.texts()).toContain('音效: 关');
+
+            platform.tap(1, soundButton.x + 5, soundButton.y + 5);
+            expect(app.sound.muted).toBe(false);
+            expect(app.scene).toBe('title');
+
+            platform.store.set('ns-shaft:muted', '1');
+            const reopened = new GameApp(platform, { seed: 1 });
+            expect(reopened.sound.muted).toBe(true);
+        });
+
+        it('has no sound menu when the platform cannot play audio or sound is disabled', () => {
+            expect(createApp().app.getSnapshot().menu.map(b => b.id)).toEqual(['mode', 'start', 'daily']);
+            const { app } = createApp({ sound: null }, { audio: createFakeAudioContext() });
+            expect(app.sound).toBeNull();
+            expect(() => app.handleKey('m', true)).not.toThrow();
+        });
     });
 
     it('toggles the debug overlay with the backtick key', () => {

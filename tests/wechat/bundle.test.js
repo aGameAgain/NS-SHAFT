@@ -70,7 +70,8 @@ describe('WeChat mini game bundle', () => {
         expect(code).not.toMatch(/\b(document|localStorage|sessionStorage|navigator)\b/);
         expect(code).not.toMatch(/\bwindow\./);
         expect(code).not.toMatch(/^\s*(import|export)\s/m);
-        expect(code).not.toMatch(/\?\.|\?\?/);
+        // `?.` 后跟数字是三元表达式（如 `x==null?.3:y`），不是可选链
+        expect(code).not.toMatch(/\?\.(?!\d)|\?\?/);
     });
 
     it('boots, renders and responds to touches inside a wx-only sandbox', () => {
