@@ -1,11 +1,14 @@
 import { TICK_MS } from '../core/config.js';
 import { GameSession } from '../core/GameSession.js';
 import { randomSeed } from '../core/rng.js';
+import { DEFAULT_RULESET, RULESET_IDS, getRules } from '../core/rules.js';
+import { ReplayPlayer, ReplayRecorder, dailySeed, decodeReplay } from '../core/replay.js';
 import { Renderer } from '../render/Renderer.js';
 import { InputState } from './InputState.js';
-import { computeLayout, getTouchButtons, hitTest } from './layout.js';
+import { computeLayout, getMenuButtons, getTouchButtons, hitTest } from './layout.js';
 
 const BEST_DEPTH_KEY = 'ns-shaft:bestDepth';
+const RULES_KEY = 'ns-shaft:rules';
 // 单帧最多追帧数，防止切后台回来后一次性模拟太久
 const MAX_STEPS_PER_FRAME = 5;
 // 游戏结束后短暂屏蔽输入，避免误触立即重开
@@ -24,33 +27,60 @@ const GAMEOVER_INPUT_DELAY_TICKS = 30;
  * @property {{get: (key: string) => string|null, set: (key: string, value: string) => void}} storage
  * @property {(cb: () => void) => void} requestFrame
  * @property {() => number} now                    毫秒
+ * @property {() => object|null} [createAudioContext]  返回 WebAudio 兼容的 AudioContext，不支持时为 null
+ */
+
+/**
+ * @typedef {object} GameAppOptions
+ * @property {number} [seed]           固定 seed（调试用）
+ * @property {string} [rules]          规则预设 id，覆盖本地保存的选择
+ * @property {string} [replay]         启动后直接播放的回放编码
+ * @property {boolean} [debug]
+ * @property {boolean} [touchControls]
+ * @property {() => Date} [today]      每日挑战取日期的来源，测试时可注入
+ * @property {{handleEvents: (events: Array<{type: string}>) => void, unlock?: () => void}} [sound]
  */
 
 export class GameApp {
     /**
      * @param {PlatformAdapter} platform
-     * @param {{seed?: number, debug?: boolean, touchControls?: boolean}} [options]
+     * @param {GameAppOptions} [options]
      */
     constructor(platform, options = {}) {
         this.platform = platform;
         this.fixedSeed = options.seed;
         this.debugEnabled = Boolean(options.debug);
         this.touchControls = options.touchControls ?? platform.touchCapable;
+        this.today = options.today || (() => new Date());
+        this.sound = options.sound || null;
 
         this.input = new InputState();
         this.ctx = platform.canvas.getContext('2d');
         this.renderer = new Renderer(this.ctx);
         this.scene = 'title';
         this.sceneTicks = 0;
-        this.bestDepth = Number(platform.storage.get(BEST_DEPTH_KEY)) || 0;
+        /** @type {'normal'|'daily'|'replay'} */
+        this.mode = 'normal';
+        this.rulesId = getRules(options.rules ?? platform.storage.get(RULES_KEY) ?? DEFAULT_RULESET).id;
+        this.daily = null;
+        this.recorder = null;
+        this.replayPlayer = null;
+        this.notice = '';
         this.pointers = new Map();
         this.running = false;
         this.accumulator = 0;
         this.fps = 0;
 
         this.updateLayout();
-        this.session = new GameSession({ viewHeight: this.layout.worldHeight, seed: this.nextSeed() });
+        this.session = new GameSession({
+            viewHeight: this.layout.worldHeight,
+            seed: this.nextSeed(),
+            rules: this.rulesId
+        });
+        this.bestDepth = this.loadBest();
         this.bindPlatform();
+
+        if (options.replay) this.startReplay(options.replay);
     }
 
     nextSeed() {
@@ -64,6 +94,10 @@ export class GameApp {
         if (canvas.width !== this.layout.canvasWidth) canvas.width = this.layout.canvasWidth;
         if (canvas.height !== this.layout.canvasHeight) canvas.height = this.layout.canvasHeight;
         this.session?.setViewHeight(this.layout.worldHeight);
+    }
+
+    get menuButtons() {
+        return getMenuButtons(this.layout, this.scene);
     }
 
     bindPlatform() {
@@ -130,24 +164,47 @@ export class GameApp {
         this.sceneTicks++;
         if (this.scene !== 'playing') return;
 
-        this.session.step(this.input.consume());
+        let input;
+        if (this.mode === 'replay') {
+            input = this.replayPlayer.next();
+            this.input.consume();
+        } else {
+            input = this.input.consume();
+            this.recorder.record(input);
+        }
+
+        const events = this.session.step(input);
+        this.sound?.handleEvents(events);
         if (this.session.isOver) {
-            this.recordBest(this.session.depth);
+            if (this.mode !== 'replay') this.recordBest(this.session.depth);
             this.setScene('gameover');
         }
     }
 
     render() {
+        const rules = getRules(this.rulesId);
         this.renderer.render({
             scene: this.scene,
             session: this.session,
             layout: this.layout,
             buttons: this.buttons,
             pressed: this.input.pressedButtons(),
+            menu: this.menuButtons,
             bestDepth: this.bestDepth,
+            mode: this.mode,
+            modeName: rules.name,
+            dailyKey: this.daily?.key ?? this.todayKey().key,
+            notice: this.notice,
+            hudLabel: this.hudLabel(),
             touchControls: this.touchControls,
             debug: this.debugEnabled ? { fps: this.fps } : null
         });
+    }
+
+    hudLabel() {
+        if (this.mode === 'replay') return '回放';
+        if (this.mode === 'daily') return '每日挑战';
+        return undefined;
     }
 
     setScene(scene) {
@@ -155,11 +212,80 @@ export class GameApp {
         this.sceneTicks = 0;
     }
 
-    startGame() {
-        this.session.reset(this.nextSeed());
+    todayKey() {
+        const d = this.today();
+        return dailySeed(d.getFullYear(), d.getMonth() + 1, d.getDate());
+    }
+
+    /** @param {'normal'|'daily'} [mode] */
+    startGame(mode = this.mode === 'replay' ? 'normal' : this.mode) {
+        this.mode = mode;
+        let seed;
+        if (mode === 'daily') {
+            this.daily = this.todayKey();
+            seed = this.daily.seed;
+        } else {
+            this.daily = null;
+            seed = this.nextSeed();
+        }
+        this.session.reset(seed, this.rulesId);
+        this.recorder = new ReplayRecorder(this.rulesId, this.session.seed);
+        this.replayPlayer = null;
+        this.bestDepth = this.loadBest();
+        this.beginPlay();
+    }
+
+    /** @returns {boolean} 回放是否成功开始 */
+    startReplay(code) {
+        let replay;
+        try {
+            replay = decodeReplay(code);
+        } catch (err) {
+            this.notice = err.message;
+            return false;
+        }
+        this.mode = 'replay';
+        this.replayCode = code;
+        this.replayPlayer = new ReplayPlayer(replay);
+        this.recorder = null;
+        this.session.reset(replay.seed, replay.rules);
+        this.beginPlay();
+        return true;
+    }
+
+    beginPlay() {
+        this.notice = '';
         this.input.clearQueued();
         this.accumulator = 0;
+        this.sound?.unlock?.();
         this.setScene('playing');
+    }
+
+    /** 当前或上一局的回放编码，可通过 ?replay= 复现 */
+    exportReplay() {
+        if (this.mode === 'replay') return this.replayCode;
+        return this.recorder ? this.recorder.encode() : null;
+    }
+
+    restart() {
+        if (this.mode === 'replay') this.startReplay(this.replayCode);
+        else this.startGame(this.mode);
+    }
+
+    goToTitle() {
+        if (this.mode === 'replay') this.session.reset(this.nextSeed(), this.rulesId);
+        this.mode = 'normal';
+        this.daily = null;
+        this.bestDepth = this.loadBest();
+        this.setScene('title');
+    }
+
+    cycleRules(step = 1) {
+        const index = RULESET_IDS.indexOf(this.rulesId);
+        this.rulesId = RULESET_IDS[(index + step + RULESET_IDS.length) % RULESET_IDS.length];
+        this.platform.storage.set(RULES_KEY, this.rulesId);
+        this.session.reset(this.session.seed, this.rulesId);
+        this.bestDepth = this.loadBest();
     }
 
     togglePause() {
@@ -167,32 +293,53 @@ export class GameApp {
         else if (this.scene === 'paused') this.setScene('playing');
     }
 
+    get gameoverLocked() {
+        return this.scene === 'gameover' && this.sceneTicks < GAMEOVER_INPUT_DELAY_TICKS;
+    }
+
     /** 标题/暂停/结束界面上的「确认」操作 */
     confirm() {
-        if (this.scene === 'title') this.startGame();
+        if (this.scene === 'title') this.startGame('normal');
         else if (this.scene === 'paused') this.setScene('playing');
-        else if (this.scene === 'gameover' && this.sceneTicks >= GAMEOVER_INPUT_DELAY_TICKS) this.startGame();
+        else if (this.scene === 'gameover' && !this.gameoverLocked) this.restart();
+    }
+
+    menuAction(id) {
+        if (this.gameoverLocked) return;
+        switch (id) {
+            case 'mode': this.cycleRules(1); break;
+            case 'start': this.startGame('normal'); break;
+            case 'daily': this.startGame('daily'); break;
+            case 'retry': this.restart(); break;
+            case 'title': this.goToTitle(); break;
+        }
+    }
+
+    bestKey() {
+        if (this.mode === 'daily' && this.daily) return `ns-shaft:daily:${this.daily.key}:${this.rulesId}`;
+        return this.rulesId === DEFAULT_RULESET ? BEST_DEPTH_KEY : `${BEST_DEPTH_KEY}:${this.rulesId}`;
+    }
+
+    loadBest() {
+        return Number(this.platform.storage.get(this.bestKey())) || 0;
     }
 
     recordBest(depth) {
         if (depth > this.bestDepth) {
             this.bestDepth = Math.floor(depth);
-            this.platform.storage.set(BEST_DEPTH_KEY, String(this.bestDepth));
+            this.platform.storage.set(this.bestKey(), String(this.bestDepth));
         }
     }
 
     handleKey(rawKey, pressed) {
         const key = rawKey.length === 1 ? rawKey.toLowerCase() : rawKey;
-        if (pressed && this.scene !== 'playing' && (key === ' ' || key === 'Enter')) {
-            this.confirm();
-            return;
-        }
+        if (pressed && this.handleMenuKey(key)) return;
         if (pressed && (key === 'p' || key === 'Escape')) {
             this.togglePause();
             return;
         }
         if (pressed && key === 'r') {
-            this.startGame();
+            this.restart();
             return;
         }
         if (pressed && key === '`') {
@@ -202,20 +349,43 @@ export class GameApp {
         this.input.setKey(key, pressed);
     }
 
+    /** @returns {boolean} 按键是否被菜单消费 */
+    handleMenuKey(key) {
+        if (this.scene === 'playing') return false;
+        if (key === ' ' || key === 'Enter') {
+            this.confirm();
+            return true;
+        }
+        if (this.scene === 'title') {
+            if (key === 'ArrowLeft' || key === 'a') this.cycleRules(-1);
+            else if (key === 'ArrowRight' || key === 'd') this.cycleRules(1);
+            else if (key === 'c') this.startGame('daily');
+            else return false;
+            return true;
+        }
+        if (this.scene === 'gameover' && (key === 'Escape' || key === 't')) {
+            this.menuAction('title');
+            return true;
+        }
+        return false;
+    }
+
     toLogical(x, y) {
         return { x: x / this.layout.scale, y: y / this.layout.scale };
     }
 
     handlePointer(id, x, y, isDown) {
         const p = this.toLogical(x, y);
-        const button = hitTest(this.buttons, p.x, p.y);
 
         if (isDown && this.scene !== 'playing') {
-            this.confirm();
+            const menu = hitTest(this.menuButtons, p.x, p.y);
+            if (menu) this.menuAction(menu.id);
+            else this.confirm();
             this.pointers.set(id, null);
             return;
         }
 
+        const button = hitTest(this.buttons, p.x, p.y);
         const prev = this.pointers.get(id);
         const next = button?.id ?? null;
         if (prev === next && !isDown) return;
@@ -237,9 +407,11 @@ export class GameApp {
     }
 
     getSnapshot() {
+        const strip = ({ id, x, y, width, height }) => ({ id, x, y, width, height });
         return {
             platform: this.platform.name,
             scene: this.scene,
+            mode: this.mode,
             bestDepth: this.bestDepth,
             touchControls: this.touchControls,
             layout: {
@@ -250,7 +422,8 @@ export class GameApp {
                 controlsTop: this.layout.controlsTop,
                 scale: this.layout.scale
             },
-            buttons: this.buttons.map(({ id, x, y, width, height }) => ({ id, x, y, width, height })),
+            buttons: this.buttons.map(strip),
+            menu: this.menuButtons.map(strip),
             ...this.session.snapshot()
         };
     }

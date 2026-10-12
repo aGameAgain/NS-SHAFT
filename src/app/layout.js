@@ -50,6 +50,27 @@ export function getTouchButtons(layout) {
     ];
 }
 
+const MENU_BUTTON = { width: 220, height: 44 };
+
+/**
+ * 标题 / 结束界面上的菜单按钮（位置相对游戏世界区域中心）。
+ * 文案由渲染层根据 id 和当前状态决定。
+ */
+export function getMenuButtons(layout, scene) {
+    const cx = layout.width / 2;
+    const cy = layout.worldTop + layout.worldHeight / 2;
+    const button = (id, dy) => ({
+        id,
+        x: cx - MENU_BUTTON.width / 2,
+        y: cy + dy - MENU_BUTTON.height / 2,
+        width: MENU_BUTTON.width,
+        height: MENU_BUTTON.height
+    });
+    if (scene === 'title') return [button('mode', -10), button('start', 50), button('daily', 110)];
+    if (scene === 'gameover') return [button('retry', 60), button('title', 120)];
+    return [];
+}
+
 export function hitTest(buttons, x, y) {
     return buttons.find(b => x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height) || null;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GameApp } from '../../src/app/GameApp.js';
 import { SCREEN_SCROLL_SPEED } from '../../src/core/config.js';
+import { dailySeed } from '../../src/core/replay.js';
 import { createFakePlatform } from '../helpers/fakes.js';
 
 function createApp(options = {}, platformOptions = {}) {
@@ -162,6 +163,145 @@ describe('GameApp', () => {
         const snap = app.getSnapshot();
         expect(snap).toMatchObject({ platform: 'fake', scene: 'playing', tick: 10, seed: 1 });
         expect(() => JSON.stringify(snap)).not.toThrow();
+    });
+
+    describe('modes and menus', () => {
+        const center = b => [b.x + b.width / 2, b.y + b.height / 2];
+        const menuButton = (app, id) => app.menuButtons.find(b => b.id === id);
+
+        it('cycles rule presets on the title screen and remembers the choice', () => {
+            const { app, platform } = createApp();
+            platform.pressKey('ArrowRight');
+            expect(app.rulesId).toBe('nsshaft');
+            expect(platform.store.get('ns-shaft:rules')).toBe('nsshaft');
+            expect(app.session.state.lives).toBe(12);
+            platform.pressKey('ArrowLeft');
+            platform.pressKey('ArrowLeft');
+            expect(app.rulesId).toBe('hard');
+
+            const again = new GameApp(platform, { seed: 1 });
+            expect(again.rulesId).toBe('hard');
+            expect(new GameApp(platform, { seed: 1, rules: 'classic' }).rulesId).toBe('classic');
+        });
+
+        it('keeps a separate best depth per preset (classic keeps the legacy key)', () => {
+            const { app, platform } = createApp();
+            platform.store.set('ns-shaft:bestDepth', '50');
+            platform.store.set('ns-shaft:bestDepth:nsshaft', '7');
+            expect(app.loadBest()).toBe(50);
+            platform.pressKey('d');
+            expect(app.bestDepth).toBe(7);
+        });
+
+        it('starts the daily challenge with a date-derived seed', () => {
+            const today = () => new Date(2026, 9, 12);
+            const platform = createFakePlatform();
+            const app = new GameApp(platform, { today });
+            app.start();
+            platform.pressKey('c');
+            expect(app.mode).toBe('daily');
+            expect(app.session.seed).toBe(dailySeed(2026, 10, 12).seed);
+
+            app.advance(100);
+            app.session.player.y = app.session.depth + 5000;
+            app.advance(31);
+            expect(app.scene).toBe('gameover');
+            expect(platform.store.get('ns-shaft:daily:2026-10-12:classic')).toBe(String(app.bestDepth));
+            expect(platform.store.has('ns-shaft:bestDepth')).toBe(false);
+
+            platform.pressKey('Enter');
+            expect(app.mode).toBe('daily');
+            expect(app.session.seed).toBe(dailySeed(2026, 10, 12).seed);
+        });
+
+        it('handles menu taps on title and game over', () => {
+            const { app, platform } = createApp({}, { touchCapable: true });
+            platform.tap(1, ...center(menuButton(app, 'mode')));
+            expect(app.rulesId).toBe('nsshaft');
+            expect(app.scene).toBe('title');
+
+            platform.tap(2, ...center(menuButton(app, 'daily')));
+            expect(app.scene).toBe('playing');
+            expect(app.mode).toBe('daily');
+
+            app.session.player.y = app.session.depth + 5000;
+            app.advance(1);
+            platform.tap(3, ...center(menuButton(app, 'title')));
+            expect(app.scene).toBe('gameover');
+            app.advance(30);
+            platform.tap(4, ...center(menuButton(app, 'title')));
+            expect(app.scene).toBe('title');
+            expect(app.mode).toBe('normal');
+        });
+
+        it('returns to the title from game over with Escape', () => {
+            const { app, platform } = createApp();
+            app.startGame();
+            app.session.player.y = app.session.depth + 5000;
+            app.advance(40);
+            platform.pressKey('Escape');
+            expect(app.scene).toBe('title');
+        });
+    });
+
+    describe('replay', () => {
+        const playRecorded = app => {
+            app.startGame();
+            for (let i = 0; i < 400 && !app.session.isOver; i++) {
+                app.input.setKey('ArrowLeft', i % 90 < 30);
+                app.input.setKey('ArrowRight', i % 90 > 60);
+                if (i % 70 === 0) app.input.setKey(' ', true);
+                app.advance(1);
+                app.input.setKey(' ', false);
+            }
+        };
+
+        it('exports the current run and reproduces it exactly from the code', () => {
+            const { app } = createApp({ seed: 5 });
+            playRecorded(app);
+            const code = app.exportReplay();
+            const expected = app.session.snapshot();
+
+            const { app: viewer } = createApp({ seed: 999, replay: code });
+            expect(viewer.mode).toBe('replay');
+            expect(viewer.scene).toBe('playing');
+            viewer.advance(expected.tick);
+            expect(viewer.session.snapshot()).toEqual(expected);
+            expect(viewer.exportReplay()).toBe(code);
+        });
+
+        it('ignores player input and does not record best depth during replays', () => {
+            const { app } = createApp({ seed: 5 });
+            playRecorded(app);
+            const code = app.exportReplay();
+
+            const viewer = createApp({ replay: code });
+            viewer.platform.pressKey('ArrowRight');
+            viewer.app.advance(2000);
+            expect(viewer.app.scene).toBe('gameover');
+            expect(viewer.platform.store.size).toBe(0);
+
+            viewer.platform.pressKey('Enter');
+            expect(viewer.app.mode).toBe('replay');
+            expect(viewer.app.session.tick).toBe(0);
+        });
+
+        it('shows a notice for invalid replay codes', () => {
+            const { app, platform } = createApp({ replay: 'garbage' });
+            expect(app.scene).toBe('title');
+            platform.runFrames(1);
+            expect(platform.canvas.ctx.texts()).toContain('无法识别的回放格式');
+        });
+    });
+
+    it('forwards session events to the sound hook', () => {
+        const events = [];
+        const sound = { handleEvents: e => events.push(...e), unlock: () => events.push({ type: 'unlock' }) };
+        const { app, platform } = createApp({ sound });
+        platform.pressKey(' ');
+        platform.runFrames(30);
+        expect(events.map(e => e.type)).toEqual(['unlock', 'land']);
+        expect(app.scene).toBe('playing');
     });
 
     it('toggles the debug overlay with the backtick key', () => {

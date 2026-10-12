@@ -215,36 +215,67 @@ export class Renderer {
         }
     }
 
-    drawOverlay({ scene, session, layout, bestDepth = 0, touchControls }) {
+    drawOverlay(frame) {
+        const { scene, layout } = frame;
         if (scene === 'playing') return;
         const { ctx } = this;
-        const cx = layout.width / 2;
-        const cy = layout.worldTop + layout.worldHeight / 2;
-        const action = touchControls ? '点击屏幕' : '按空格 / 回车';
-
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, layout.worldTop, layout.width, layout.worldHeight);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = COLORS.TEXT;
 
-        const lines = {
-            title: [['NS-SHAFT', 36], [`${action}开始游戏`, 18], [`最佳深度: ${Math.floor(bestDepth)}m`, 14]],
-            paused: [['已暂停', 32], [`${action}继续`, 18]],
-            gameover: [
-                ['游戏结束', 32],
-                [`你的最终深度: ${Math.floor(session.depth)}m`, 18],
-                [`最佳深度: ${Math.floor(bestDepth)}m`, 14],
-                [`${action}再试一次`, 18]
-            ]
-        }[scene] || [];
-
-        const lineHeight = 44;
-        let y = cy - ((lines.length - 1) * lineHeight) / 2;
-        for (const [text, size] of lines) {
+        const cx = layout.width / 2;
+        const cy = layout.worldTop + layout.worldHeight / 2;
+        const text = (value, dy, size, color = COLORS.TEXT) => {
             ctx.font = `${size}px ${FONT}`;
-            ctx.fillText(text, cx, y);
-            y += lineHeight;
+            ctx.fillStyle = color;
+            ctx.fillText(value, cx, cy + dy);
+        };
+
+        if (scene === 'paused') {
+            text('已暂停', -22, 32);
+            text(`${frame.touchControls ? '点击屏幕' : '按空格 / 回车'}继续`, 22, 18);
+            return;
+        }
+
+        const { session, bestDepth = 0, mode = 'normal' } = frame;
+        if (scene === 'title') {
+            text('NS-SHAFT', -120, 36);
+            text(`最佳深度: ${Math.floor(bestDepth)}m`, -72, 14);
+            if (frame.notice) text(frame.notice, -48, 13, '#FF8A65');
+            if (!frame.touchControls) text('← → 切换模式 · 空格开始 · C 每日挑战', 165, 12, '#aaa');
+        } else if (scene === 'gameover') {
+            text(mode === 'replay' ? '回放结束' : '游戏结束', -110, 32);
+            text(`你的最终深度: ${Math.floor(session.depth)}m`, -60, 18);
+            if (mode !== 'replay') {
+                text(`${mode === 'daily' ? '今日最佳' : '最佳深度'}: ${Math.floor(bestDepth)}m`, -22, 14);
+            }
+            if (!frame.touchControls) text('空格 / 回车 再来一局 · Esc 返回标题', 175, 12, '#aaa');
+        }
+        this.drawMenu(frame);
+    }
+
+    menuLabel(id, { modeName = '', dailyKey = '', mode = 'normal' }) {
+        switch (id) {
+            case 'mode': return `◀ 模式: ${modeName} ▶`;
+            case 'start': return '开始游戏';
+            case 'daily': return `每日挑战 ${dailyKey.slice(5)}`;
+            case 'retry': return mode === 'replay' ? '重新播放' : mode === 'daily' ? '再次挑战' : '再试一次';
+            case 'title': return '返回标题';
+            default: return id;
+        }
+    }
+
+    drawMenu(frame) {
+        const { ctx } = this;
+        ctx.font = `18px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (const b of frame.menu || []) {
+            ctx.fillStyle = b.id === 'mode' || b.id === 'title' ? '#555' : COLORS.ACCENT;
+            ctx.fillRect(b.x, b.y, b.width, b.height);
+            ctx.fillStyle = COLORS.TEXT;
+            ctx.fillText(this.menuLabel(b.id, frame), b.x + b.width / 2, b.y + b.height / 2);
         }
     }
 
