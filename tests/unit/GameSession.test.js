@@ -56,6 +56,26 @@ describe('GameSession', () => {
         }
     });
 
+    it('buffers a jump pressed shortly before landing', () => {
+        const session = new GameSession({ viewHeight: VIEW_HEIGHT, seed: 1 });
+        // 开局玩家离第一个平台 10px，约 9 tick 后落地
+        run(session, 5);
+        expect(session.player.isOnPlatform).toBe(false);
+        const events = [...session.step({ jump: true })];
+        expect(events).not.toContainEqual({ type: 'jump' });
+        events.push(...run(session, PLAYER.JUMP_BUFFER_TICKS - 1));
+        expect(events).toContainEqual({ type: 'jump' });
+        expect(session.player.velocityY).toBeLessThan(0);
+    });
+
+    it('drops a buffered jump that is too old', () => {
+        const session = new GameSession({ viewHeight: VIEW_HEIGHT, seed: 1 });
+        session.step({ jump: true });
+        const events = run(session, 30);
+        expect(events).not.toContainEqual({ type: 'jump' });
+        expect(session.player.isOnPlatform).toBe(true);
+    });
+
     it('does not spawn overlapping platforms right after the start', () => {
         const session = new GameSession({ viewHeight: VIEW_HEIGHT, seed: 3 });
         run(session, 5);

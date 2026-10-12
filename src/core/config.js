@@ -16,7 +16,11 @@ export const PLAYER = {
     MOVE_SPEED: 5,
     GRAVITY: 0.25,
     JUMP_POWER: 8,
-    HURT_TICKS: 30
+    HURT_TICKS: 30,
+    // 走出平台边缘后仍允许起跳的 tick 数（土狼时间）
+    COYOTE_TICKS: 6,
+    // 落地前提前按下的跳跃在多少 tick 内仍然生效
+    JUMP_BUFFER_TICKS: 6
 };
 
 export const SPRING_BOOST = 1.5;
@@ -32,6 +36,7 @@ export const PLATFORM = {
     BREAK_TICKS: 60,
     MOVE_SPEED_MIN: 1,
     MOVE_SPEED_RANGE: 2,
+    CONVEYOR_SPEED: 2,
     // 平台离开视野顶部多远后回收
     DESPAWN_MARGIN: 100
 };
@@ -49,7 +54,7 @@ export const DAMAGE = {
     CEILING: 10
 };
 
-// 按深度分档的平台概率（累积前的单项概率，剩余为普通平台）
+// 经典规则下按深度分档的平台概率（累积前的单项概率，剩余为普通平台），其他预设见 rules.js
 export const DIFFICULTY_TIERS = [
     { minDepth: 500, spike: 0.15, breaking: 0.2, moving: 0.2, spring: 0.15 },
     { minDepth: 200, spike: 0.1, breaking: 0.15, moving: 0.15, spring: 0.1 },

@@ -1,4 +1,4 @@
-import { WORLD_WIDTH, SCREEN_SCROLL_SPEED, DAMAGE } from './config.js';
+import { WORLD_WIDTH, SCREEN_SCROLL_SPEED, DAMAGE, PLAYER } from './config.js';
 import { GameState } from './GameState.js';
 import { Player } from './Player.js';
 import { PlatformManager } from './Platform.js';
@@ -23,6 +23,7 @@ export class GameSession {
         this.seed = seed >>> 0;
         this.rng = createRng(this.seed);
         this.tick = 0;
+        this.jumpBuffer = 0;
         this.state.reset();
         this.player.reset(this.worldWidth);
         this.platformManager = new PlatformManager(this.worldWidth, this.viewHeight, this.rng);
@@ -60,7 +61,9 @@ export class GameSession {
 
         this.platformManager.update(state.depth);
         player.update(input);
-        if (input.jump && player.jump()) {
+        this.jumpBuffer = input.jump ? PLAYER.JUMP_BUFFER_TICKS : Math.max(0, this.jumpBuffer - 1);
+        if (this.jumpBuffer > 0 && player.jump()) {
+            this.jumpBuffer = 0;
             events.push({ type: 'jump' });
         }
         player.applyGravity();
