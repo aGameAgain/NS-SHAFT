@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SOUNDS, SOUND_NAMES, synthesize } from '../../src/audio/sfx.js';
+import { SOUNDS, SOUND_NAMES, renderNotes, synthesize } from '../../src/audio/sfx.js';
 
 describe('synthesized sound effects', () => {
     it.each(SOUND_NAMES)('renders %s as bounded, non-silent PCM of the declared length', name => {
@@ -26,7 +26,18 @@ describe('synthesized sound effects', () => {
         expect(Math.abs(samples[samples.length - 1])).toBeLessThan(0.001);
     });
 
-    it('rejects unknown sounds', () => {
+    it('rejects unknown sounds and waveforms', () => {
         expect(() => synthesize('nope', 8000)).toThrow('未知音效');
+        expect(() => renderNotes([{ wave: 'saw', freq: [440, 440], duration: 0.01 }], 8000)).toThrow('未知波形');
+    });
+
+    it('renders sine notes back to back with a default volume', () => {
+        const samples = renderNotes([
+            { wave: 'sine', freq: [440, 440], duration: 0.01 },
+            { wave: 'sine', freq: [880, 880], duration: 0.01 }
+        ], 8000);
+        expect(samples.length).toBe(160);
+        expect(Math.max(...samples)).toBeLessThanOrEqual(0.3);
+        expect(Math.max(...samples.subarray(80))).toBeGreaterThan(0.05);
     });
 });

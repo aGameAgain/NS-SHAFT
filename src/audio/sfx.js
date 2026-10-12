@@ -82,6 +82,15 @@ function renderNote(note, out, offset, sampleRate) {
 export function synthesize(name, sampleRate) {
     const notes = SOUNDS[name];
     if (!notes) throw new Error(`未知音效: ${name}`);
+    return renderNotes(notes, sampleRate);
+}
+
+/**
+ * @param {Note[]} notes  依次首尾相接播放
+ * @param {number} sampleRate
+ * @returns {Float32Array}
+ */
+export function renderNotes(notes, sampleRate) {
     const total = notes.reduce((sum, n) => sum + Math.round(n.duration * sampleRate), 0);
     const out = new Float32Array(total);
     let offset = 0;
