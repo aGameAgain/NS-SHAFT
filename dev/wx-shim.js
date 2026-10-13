@@ -102,7 +102,11 @@ export function installWxShim({ mount = document.body, device = 'iphonex', stora
             const raw = localStorage.getItem(storagePrefix + key);
             return raw === null ? '' : JSON.parse(raw);
         },
-        setStorageSync: (key, value) => localStorage.setItem(storagePrefix + key, JSON.stringify(value))
+        setStorageSync: (key, value) => localStorage.setItem(storagePrefix + key, JSON.stringify(value)),
+        createWebAudioContext: () => {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            return AudioContextCtor ? new AudioContextCtor() : null;
+        }
     };
 
     window.wx = wx;

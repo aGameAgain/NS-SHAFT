@@ -17,10 +17,12 @@ export class Player {
         this.isOnPlatform = false;
         this.currentPlatform = null;
         this.hurtTicks = 0;
+        this.coyoteTicks = 0;
     }
 
     /** @param {{left?: boolean, right?: boolean}} input */
     update(input) {
+        if (!this.isOnPlatform && this.coyoteTicks > 0) this.coyoteTicks--;
         this.handleInput(input);
         this.followMovingPlatform();
         this.constrainToScreen();
@@ -47,13 +49,13 @@ export class Player {
             this.x + this.width <= platform.x ||
             this.x >= platform.x + platform.width;
         if (isOffPlatform) {
-            this.leavePlatform();
+            this.leavePlatform({ coyote: true });
         }
     }
 
     followMovingPlatform() {
         if (this.isOnPlatform && this.currentPlatform && !this.currentPlatform.removed) {
-            this.x += this.currentPlatform.dx || 0;
+            this.x += (this.currentPlatform.dx || 0) + (this.currentPlatform.surfaceSpeed || 0);
         }
     }
 
@@ -69,8 +71,12 @@ export class Player {
         this.y += this.velocityY;
     }
 
+    get canJump() {
+        return this.isOnPlatform || this.coyoteTicks > 0;
+    }
+
     jump() {
-        if (!this.isOnPlatform) return false;
+        if (!this.canJump) return false;
         this.leavePlatform();
         this.velocityY = -PLAYER.JUMP_POWER;
         return true;
@@ -81,11 +87,14 @@ export class Player {
         this.currentPlatform = platform;
         this.y = platform.y - this.height;
         this.velocityY = 0;
+        this.coyoteTicks = 0;
     }
 
-    leavePlatform() {
+    /** @param {{coyote?: boolean}} [options] coyote：自己走出边缘时保留短暂的起跳窗口 */
+    leavePlatform({ coyote = false } = {}) {
         this.isOnPlatform = false;
         this.currentPlatform = null;
+        this.coyoteTicks = coyote ? PLAYER.COYOTE_TICKS : 0;
     }
 
     takeDamage() {

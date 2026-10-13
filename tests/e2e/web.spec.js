@@ -118,6 +118,75 @@ test.describe('Web build', () => {
         expect((await snapshot(page)).bestDepth).toBe(bestDepth);
     });
 
+    test('switches rule presets on the title screen', async ({ page }) => {
+        await gotoGame(page);
+        await page.keyboard.press('ArrowRight');
+        expect(await snapshot(page)).toMatchObject({ rules: 'nsshaft', maxLives: 12 });
+        await page.keyboard.press('Space');
+        await waitForScene(page, 'playing');
+        expect((await snapshot(page)).rules).toBe('nsshaft');
+
+        await page.reload();
+        await page.waitForFunction(() => Boolean(window.__NS_SHAFT__));
+        expect((await snapshot(page)).rules).toBe('nsshaft');
+    });
+
+    test('creates the audio context on the first gesture and mutes with M', async ({ page }, testInfo) => {
+        const errors = await gotoGame(page);
+        const audioState = () => page.evaluate(() => window.__NS_SHAFT__.sound.ctx?.state ?? null);
+        expect((await snapshot(page)).menu.map(b => b.id)).toContain('sound');
+        expect(await audioState()).toBeNull();
+        await page.keyboard.press('Space');
+        await waitForScene(page, 'playing');
+        // 无头 Firefox 没有音频设备，上下文会停留在 suspended
+        const expected = testInfo.project.name === 'chromium' ? ['running'] : ['running', 'suspended'];
+        await expect.poll(audioState).toBeTruthy();
+        expect(expected).toContain(await audioState());
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('Space');
+
+        await page.keyboard.press('m');
+        expect((await snapshot(page)).muted).toBe(true);
+        await page.reload();
+        await page.waitForFunction(() => Boolean(window.__NS_SHAFT__));
+        expect((await snapshot(page)).muted).toBe(true);
+        expect(errors).toEqual([]);
+    });
+
+    test('starts the daily challenge with C', async ({ page }) => {
+        await gotoGame(page, '/');
+        await page.keyboard.press('c');
+        await waitForScene(page, 'playing');
+        expect((await snapshot(page)).mode).toBe('daily');
+    });
+
+    test('replay link reproduces the recorded run', async ({ page }) => {
+        await gotoGame(page);
+        await page.keyboard.press('Space');
+        await waitForScene(page, 'playing');
+        const recorded = await page.evaluate(() => {
+            const app = window.__NS_SHAFT__;
+            app.stop();
+            for (let i = 0; i < 300; i++) {
+                app.input.setKey('ArrowRight', i % 80 < 20);
+                app.input.setKey(' ', i % 45 === 0);
+                app.advance(1);
+            }
+            return { url: window.__NS_SHAFT_REPLAY_URL__(), snap: app.session.snapshot() };
+        });
+        expect(recorded.url).toContain('replay=ns1.classic.1.');
+
+        await gotoGame(page, recorded.url.replace(/^https?:\/\/[^/]+/, ''));
+        const replayed = await page.evaluate(ticks => {
+            const app = window.__NS_SHAFT__;
+            app.stop();
+            app.advance(ticks - app.session.tick);
+            return { mode: app.mode, snap: app.session.snapshot() };
+        }, recorded.snap.tick);
+        expect(replayed.mode).toBe('replay');
+        expect(replayed.snap).toEqual(recorded.snap);
+    });
+
     test('supports ?debug and ?touch query params for browser debugging', async ({ page }) => {
         await gotoGame(page, '/?seed=7&debug&touch=1');
         const snap = await snapshot(page);

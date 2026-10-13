@@ -1,6 +1,7 @@
 /**
  * 微信小游戏平台适配器。这里是唯一允许直接访问 wx.* 的地方。
- * @param {object} wx  微信全局对象（测试或浏览器模拟时可传入替身）
+ * @param {any} wx  微信全局对象（测试或浏览器模拟时可传入替身）
+ * @param {{raf?: (cb: () => void) => void}} [options]
  * @returns {import('../app/GameApp.js').PlatformAdapter}
  */
 export function createWechatPlatform(wx, { raf } = {}) {
@@ -72,6 +73,9 @@ export function createWechatPlatform(wx, { raf } = {}) {
                 }
             }
         },
+
+        // 基础库 2.19.0+ 提供 WebAudio 兼容接口
+        createAudioContext: () => (wx.createWebAudioContext ? wx.createWebAudioContext() : null),
 
         requestFrame,
         now: () => Date.now()

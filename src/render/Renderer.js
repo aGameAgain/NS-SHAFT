@@ -1,7 +1,26 @@
-import { CEILING, COLORS, MAX_LIVES } from '../core/config.js';
+import { CEILING, COLORS } from '../core/config.js';
 import { PLATFORM_TYPES } from '../core/Platform.js';
 
 const FONT = 'sans-serif';
+
+/**
+ * @typedef {object} Frame
+ * @property {'title'|'playing'|'paused'|'gameover'} scene
+ * @property {import('../core/GameSession.js').GameSession} session
+ * @property {ReturnType<typeof import('../app/layout.js').computeLayout>} layout
+ * @property {Array<{id: string, label?: string, x: number, y: number, width: number, height: number}>} [buttons]  触控按钮
+ * @property {Set<string>} [pressed]
+ * @property {Array<{id: string, x: number, y: number, width: number, height: number}>} [menu]  菜单按钮
+ * @property {number} [bestDepth]
+ * @property {'normal'|'daily'|'replay'} [mode]
+ * @property {string} [modeName]
+ * @property {string} [dailyKey]
+ * @property {string} [notice]
+ * @property {string} [hudLabel]
+ * @property {boolean} [muted]
+ * @property {boolean} [touchControls]
+ * @property {{fps: number}|null} [debug]
+ */
 
 /**
  * 只依赖 CanvasRenderingContext2D 的通用子集，浏览器和微信小游戏共用。
@@ -12,16 +31,7 @@ export class Renderer {
         this.ctx = ctx;
     }
 
-    /**
-     * @param {object} frame
-     * @param {'title'|'playing'|'paused'|'gameover'} frame.scene
-     * @param {import('../core/GameSession.js').GameSession} frame.session
-     * @param {ReturnType<import('../app/layout.js').computeLayout>} frame.layout
-     * @param {Array} [frame.buttons]
-     * @param {Set<string>} [frame.pressed]
-     * @param {number} [frame.bestDepth]
-     * @param {object|null} [frame.debug]
-     */
+    /** @param {Frame} frame */
     render(frame) {
         const { ctx } = this;
         const { layout } = frame;
@@ -40,6 +50,7 @@ export class Renderer {
         if (frame.debug) this.drawDebug(frame);
     }
 
+    /** @param {Frame} frame */
     drawWorld({ session, layout, debug }) {
         const { ctx } = this;
         const depth = session.depth;
@@ -54,7 +65,7 @@ export class Renderer {
         for (const platform of session.platforms) {
             const relativeY = platform.y - depth;
             if (relativeY >= -platform.height - 10 && relativeY <= layout.worldHeight) {
-                this.drawPlatform(platform, relativeY);
+                this.drawPlatform(platform, relativeY, session.tick);
                 if (debug) this.drawHitbox(platform.x, relativeY, platform.width, platform.height);
             }
         }
@@ -96,7 +107,7 @@ export class Renderer {
         }
     }
 
-    drawPlatform(platform, relativeY) {
+    drawPlatform(platform, relativeY, tick = 0) {
         const { ctx } = this;
         ctx.fillStyle = platform.breaking && platform.breakTime % 5 === 0
             ? COLORS.PLATFORM_FLASH
@@ -112,6 +123,8 @@ export class Renderer {
                 ctx.lineTo(platform.x + i, relativeY);
                 ctx.fill();
             }
+        } else if (platform.type === PLATFORM_TYPES.CONVEYOR) {
+            this.drawConveyor(platform, relativeY, tick);
         } else if (platform.type === PLATFORM_TYPES.SPRING) {
             ctx.fillStyle = platform.color;
             for (let i = 0; i < 3; i++) {
@@ -123,6 +136,30 @@ export class Renderer {
                 );
             }
         }
+    }
+
+    /** 箭头随 tick 沿传送方向滚动 */
+    drawConveyor(platform, relativeY, tick) {
+        const { ctx } = this;
+        const step = 12;
+        const dir = Math.sign(platform.surfaceSpeed) || 1;
+        const offset = ((tick * Math.abs(platform.surfaceSpeed)) % step) * dir;
+        const midY = relativeY + platform.height / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(platform.x, relativeY, platform.width, platform.height);
+        ctx.clip();
+        ctx.strokeStyle = '#424242';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let x = platform.x - step; x < platform.x + platform.width + step; x += step) {
+            const tip = x + offset + dir * 4;
+            ctx.moveTo(x + offset - dir * 2, relativeY + 3);
+            ctx.lineTo(tip, midY);
+            ctx.lineTo(x + offset - dir * 2, relativeY + platform.height - 3);
+        }
+        ctx.stroke();
+        ctx.restore();
     }
 
     drawPlayer(player, relativeY) {
@@ -149,7 +186,9 @@ export class Renderer {
         ctx.stroke();
     }
 
-    drawHud({ session, layout }) {
+    /** @param {Frame} frame */
+    drawHud({ session, layout, hudLabel }) {
+        const label = hudLabel ?? (session.rules.id === 'classic' ? '' : session.rules.name);
         const { ctx } = this;
         const y = layout.hudTop + layout.hudHeight / 2;
         ctx.fillStyle = COLORS.PANEL;
@@ -161,9 +200,17 @@ export class Renderer {
         ctx.textAlign = 'left';
         ctx.fillText(`深度: ${Math.floor(session.depth)}m`, 10, y);
         ctx.textAlign = 'right';
-        ctx.fillText(`生命值: ${session.state.lives}/${MAX_LIVES}`, layout.width - 10, y);
+        ctx.fillText(`生命值: ${session.state.lives}/${session.state.maxLives}`, layout.width - 10, y);
+
+        if (label) {
+            ctx.font = `12px ${FONT}`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#FFC107';
+            ctx.fillText(label, layout.width / 2, y);
+        }
     }
 
+    /** @param {Frame} frame */
     drawTouchControls({ layout, buttons = [], pressed }) {
         if (!layout.controlsHeight) return;
         const { ctx } = this;
@@ -181,36 +228,74 @@ export class Renderer {
         }
     }
 
-    drawOverlay({ scene, session, layout, bestDepth = 0, touchControls }) {
+    /** @param {Frame} frame */
+    drawOverlay(frame) {
+        const { scene, layout } = frame;
         if (scene === 'playing') return;
         const { ctx } = this;
-        const cx = layout.width / 2;
-        const cy = layout.worldTop + layout.worldHeight / 2;
-        const action = touchControls ? '点击屏幕' : '按空格 / 回车';
-
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, layout.worldTop, layout.width, layout.worldHeight);
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = COLORS.TEXT;
 
-        const lines = {
-            title: [['NS-SHAFT', 36], [`${action}开始游戏`, 18], [`最佳深度: ${Math.floor(bestDepth)}m`, 14]],
-            paused: [['已暂停', 32], [`${action}继续`, 18]],
-            gameover: [
-                ['游戏结束', 32],
-                [`你的最终深度: ${Math.floor(session.depth)}m`, 18],
-                [`最佳深度: ${Math.floor(bestDepth)}m`, 14],
-                [`${action}再试一次`, 18]
-            ]
-        }[scene] || [];
-
-        const lineHeight = 44;
-        let y = cy - ((lines.length - 1) * lineHeight) / 2;
-        for (const [text, size] of lines) {
+        const cx = layout.width / 2;
+        const cy = layout.worldTop + layout.worldHeight / 2;
+        const text = (value, dy, size, color = COLORS.TEXT) => {
             ctx.font = `${size}px ${FONT}`;
-            ctx.fillText(text, cx, y);
-            y += lineHeight;
+            ctx.fillStyle = color;
+            ctx.fillText(value, cx, cy + dy);
+        };
+
+        if (scene === 'paused') {
+            text('已暂停', -22, 32);
+            text(`${frame.touchControls ? '点击屏幕' : '按空格 / 回车'}继续`, 22, 18);
+            return;
+        }
+
+        const { session, bestDepth = 0, mode = 'normal' } = frame;
+        if (scene === 'title') {
+            text('NS-SHAFT', -120, 36);
+            text(`最佳深度: ${Math.floor(bestDepth)}m`, -72, 14);
+            if (frame.notice) text(frame.notice, -48, 13, '#FF8A65');
+            if (!frame.touchControls) text('← → 切换模式 · 空格开始 · C 每日挑战 · M 静音', 220, 12, '#aaa');
+        } else if (scene === 'gameover') {
+            text(mode === 'replay' ? '回放结束' : '游戏结束', -110, 32);
+            text(`你的最终深度: ${Math.floor(session.depth)}m`, -60, 18);
+            if (mode !== 'replay') {
+                text(`${mode === 'daily' ? '今日最佳' : '最佳深度'}: ${Math.floor(bestDepth)}m`, -22, 14);
+            }
+            if (!frame.touchControls) text('空格 / 回车 再来一局 · Esc 返回标题', 175, 12, '#aaa');
+        }
+        this.drawMenu(frame);
+    }
+
+    /**
+     * @param {string} id
+     * @param {Frame} frame
+     */
+    menuLabel(id, { modeName = '', dailyKey = '', mode = 'normal', muted = false }) {
+        switch (id) {
+            case 'mode': return `◀ 模式: ${modeName} ▶`;
+            case 'start': return '开始游戏';
+            case 'daily': return `每日挑战 ${dailyKey.slice(5)}`;
+            case 'retry': return mode === 'replay' ? '重新播放' : mode === 'daily' ? '再次挑战' : '再试一次';
+            case 'title': return '返回标题';
+            case 'sound': return `音效: ${muted ? '关' : '开'}`;
+            default: return id;
+        }
+    }
+
+    /** @param {Frame} frame */
+    drawMenu(frame) {
+        const { ctx } = this;
+        ctx.font = `18px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        for (const b of frame.menu || []) {
+            ctx.fillStyle = b.id === 'mode' || b.id === 'title' || b.id === 'sound' ? '#555' : COLORS.ACCENT;
+            ctx.fillRect(b.x, b.y, b.width, b.height);
+            ctx.fillStyle = COLORS.TEXT;
+            ctx.fillText(this.menuLabel(b.id, frame), b.x + b.width / 2, b.y + b.height / 2);
         }
     }
 
@@ -221,6 +306,7 @@ export class Renderer {
         ctx.strokeRect(x, y, w, h);
     }
 
+    /** @param {Frame} frame */
     drawDebug({ session, layout, debug }) {
         const { ctx } = this;
         const p = session.player;

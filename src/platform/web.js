@@ -77,6 +77,11 @@ export function createWebPlatform(canvas, { forceTouch = false } = {}) {
             }
         },
 
+        createAudioContext() {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            return AudioContextCtor ? new AudioContextCtor() : null;
+        },
+
         requestFrame: cb => window.requestAnimationFrame(cb),
         now: () => performance.now()
     };

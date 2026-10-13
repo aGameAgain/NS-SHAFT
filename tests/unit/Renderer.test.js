@@ -55,7 +55,31 @@ describe('Renderer', () => {
         expect(renderFrame({ scene: 'title' }).texts()).toContain('NS-SHAFT');
         expect(renderFrame({ scene: 'paused' }).texts()).toContain('已暂停');
         expect(renderFrame({ scene: 'gameover', bestDepth: 88 }).texts()).toContain('最佳深度: 88m');
-        expect(renderFrame({ scene: 'title', touchControls: true }).texts()).toContain('点击屏幕开始游戏');
+        expect(renderFrame({ scene: 'gameover', mode: 'replay' }).texts()).toContain('回放结束');
+        expect(renderFrame({ scene: 'gameover', mode: 'daily', bestDepth: 5 }).texts()).toContain('今日最佳: 5m');
+    });
+
+    it('labels menu buttons from the current state', () => {
+        const titleLayout = computeLayout({ width: 400, height: 680 });
+        const menu = [{ id: 'mode' }, { id: 'start' }, { id: 'daily' }].map(b => ({ ...b, x: 0, y: 0, width: 10, height: 10 }));
+        const texts = renderFrame({ scene: 'title', layout: titleLayout, menu, modeName: '原版', dailyKey: '2026-10-12' }).texts();
+        expect(texts).toEqual(expect.arrayContaining(['◀ 模式: 原版 ▶', '开始游戏', '每日挑战 10-12']));
+        expect(texts.some(t => t.includes('C 每日挑战'))).toBe(true);
+
+        const sound = [{ id: 'sound', x: 0, y: 0, width: 10, height: 10 }];
+        expect(renderFrame({ scene: 'title', menu: sound, muted: false }).texts()).toContain('音效: 开');
+        expect(renderFrame({ scene: 'title', menu: sound, muted: true }).texts()).toContain('音效: 关');
+
+        const retry = [{ id: 'retry', x: 0, y: 0, width: 10, height: 10 }];
+        expect(renderFrame({ scene: 'gameover', menu: retry, mode: 'replay' }).texts()).toContain('重新播放');
+        expect(renderFrame({ scene: 'gameover', menu: retry, mode: 'daily' }).texts()).toContain('再次挑战');
+    });
+
+    it('shows the rules name and per-preset max lives in the HUD', () => {
+        const texts = renderFrame({ setup: session => session.reset(1, 'nsshaft') }).texts();
+        expect(texts).toContain('生命值: 12/12');
+        expect(texts).toContain('原版');
+        expect(renderFrame({ hudLabel: '回放' }).texts()).toContain('回放');
     });
 
     it('draws touch buttons only when enabled', () => {

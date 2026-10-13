@@ -9,6 +9,14 @@ describe('WeChat platform adapter', () => {
         expect(platform.touchCapable).toBe(true);
     });
 
+    it('creates a WebAudio context only when the base library supports it', () => {
+        const wx = createFakeWx();
+        expect(createWechatPlatform(wx).createAudioContext()).toBeNull();
+        const ctx = {};
+        wx.createWebAudioContext = () => ctx;
+        expect(createWechatPlatform(wx).createAudioContext()).toBe(ctx);
+    });
+
     it('falls back to getSystemInfoSync on old base libraries', () => {
         const wx = createFakeWx();
         delete wx.getWindowInfo;

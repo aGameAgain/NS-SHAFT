@@ -1,13 +1,15 @@
 import { MAX_LIVES } from './config.js';
 
 export class GameState {
-    constructor() {
+    constructor(maxLives = MAX_LIVES) {
+        this.maxLives = maxLives;
         this.reset();
     }
 
-    reset() {
+    reset(maxLives = this.maxLives) {
+        this.maxLives = maxLives;
         this.depth = 0;
-        this.lives = MAX_LIVES;
+        this.lives = maxLives;
         this.difficulty = 1;
         this.gameOver = false;
     }
@@ -23,6 +25,12 @@ export class GameState {
             this.gameOver = true;
         }
         return this.gameOver;
+    }
+
+    heal(amount) {
+        const before = this.lives;
+        this.lives = Math.min(this.maxLives, this.lives + amount);
+        return this.lives - before;
     }
 
     isGameOver() {

@@ -7,10 +7,11 @@ export default defineConfig({
         include: ['tests/unit/**/*.test.js', 'tests/wechat/**/*.test.js'],
         coverage: {
             provider: 'v8',
-            include: ['src/core/**', 'src/app/**', 'src/render/**', 'src/platform/wechat.js'],
+            include: ['src/core/**', 'src/audio/**', 'src/app/**', 'src/render/**', 'src/platform/wechat.js'],
             reporter: ['text', 'html', 'json-summary'],
             thresholds: {
-                'src/core/**': { lines: 90, branches: 85, functions: 90, statements: 90 }
+                'src/core/**': { lines: 90, branches: 85, functions: 90, statements: 90 },
+                'src/audio/**': { lines: 90, branches: 85, functions: 90, statements: 90 }
             }
         }
     }

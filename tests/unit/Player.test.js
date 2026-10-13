@@ -86,6 +86,36 @@ describe('Player', () => {
         expect(player.isOnPlatform).toBe(false);
     });
 
+    it('can still jump for COYOTE_TICKS after walking off an edge', () => {
+        const platform = { x: 100, y: 200, width: 80 };
+        player.landOn(platform);
+        player.x = 200;
+        player.update({});
+        expect(player.isOnPlatform).toBe(false);
+        expect(player.canJump).toBe(true);
+
+        for (let i = 1; i < PLAYER.COYOTE_TICKS; i++) player.update({});
+        expect(player.canJump).toBe(true);
+        player.update({});
+        expect(player.canJump).toBe(false);
+        expect(player.jump()).toBe(false);
+    });
+
+    it('coyote jump consumes the window', () => {
+        player.landOn({ x: 100, y: 200, width: 80 });
+        player.x = 200;
+        player.update({});
+        expect(player.jump()).toBe(true);
+        expect(player.velocityY).toBe(-PLAYER.JUMP_POWER);
+        expect(player.jump()).toBe(false);
+    });
+
+    it('does not grant coyote time when knocked off (ceiling, spring)', () => {
+        player.landOn({ x: 100, y: 200, width: 80 });
+        player.leavePlatform();
+        expect(player.canJump).toBe(false);
+    });
+
     it('follows the horizontal movement of its platform', () => {
         player.landOn({ x: 180, y: 200, width: 80, dx: 2 });
         const startX = player.x;

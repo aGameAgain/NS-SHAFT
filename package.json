@@ -5,7 +5,7 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "test": "npm run lint && npm run test:unit && npm run test:e2e",
+    "test": "npm run lint && npm run typecheck && npm run test:unit && npm run test:e2e",
     "test:unit": "vitest run",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test",
@@ -17,8 +17,11 @@
     "build:wechat:dev": "vite build --config vite.config.wechat.js --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "typecheck": "tsc -p .",
     "test:coverage": "vitest run --coverage",
-    "dev:wechat": "vite build --config vite.config.wechat.js --mode development --watch"
+    "dev:wechat": "vite build --config vite.config.wechat.js --mode development --watch",
+    "wechat:upload": "node scripts/wechat-upload.mjs",
+    "wechat:preview": "node scripts/wechat-upload.mjs --action preview"
   },
   "keywords": [
     "game",
@@ -34,6 +37,7 @@
     "@vitest/coverage-v8": "^5.0.3",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
+    "typescript": "^7.0.2",
     "vite": "^8.3.4",
     "vitest": "^5.0.3"
   },

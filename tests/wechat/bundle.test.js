@@ -3,10 +3,14 @@ import { mkdtempSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import vm from 'node:vm';
+import { gzipSync } from 'node:zlib';
 import { build } from 'vite';
 import { createFakeWx } from '../helpers/fakes.js';
 
 const root = resolve(import.meta.dirname, '../..');
+
+// 体积预算：防止误引入大依赖。小游戏主包上限为 4MB，这里远低于上限，超出时应先确认原因再调整
+const BUDGET = { rawBytes: 64 * 1024, gzipBytes: 20 * 1024 };
 
 /**
  * 把真实构建产物 game.js 放进一个「没有 window / document / localStorage」的沙箱里执行，
@@ -66,11 +70,20 @@ describe('WeChat mini game bundle', () => {
         expect(project.compileType).toBe('game');
     });
 
+    it('stays within the bundle size budget', () => {
+        const raw = Buffer.byteLength(code);
+        const gzip = gzipSync(code).length;
+        console.info(`game.js: ${(raw / 1024).toFixed(1)} KB, gzip ${(gzip / 1024).toFixed(1)} KB`);
+        expect(raw).toBeLessThanOrEqual(BUDGET.rawBytes);
+        expect(gzip).toBeLessThanOrEqual(BUDGET.gzipBytes);
+    });
+
     it('does not reference browser-only globals or ES module syntax', () => {
         expect(code).not.toMatch(/\b(document|localStorage|sessionStorage|navigator)\b/);
         expect(code).not.toMatch(/\bwindow\./);
         expect(code).not.toMatch(/^\s*(import|export)\s/m);
-        expect(code).not.toMatch(/\?\.|\?\?/);
+        // `?.` 后跟数字是三元表达式（如 `x==null?.3:y`），不是可选链
+        expect(code).not.toMatch(/\?\.(?!\d)|\?\?/);
     });
 
     it('boots, renders and responds to touches inside a wx-only sandbox', () => {
